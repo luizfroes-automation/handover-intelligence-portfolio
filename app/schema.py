@@ -1,9 +1,9 @@
 """
-Schema de saída do sistema AI Handover Intelligence.
+Output schema for the AI Handover Intelligence system.
 
-Cada campo aqui existe porque foi rastreado a um achado específico do
-Discovery ou do Root Cause Analysis — não são campos "achados que fazem
-sentido". Ver docs/02_discovery_notes.md e docs/03_root_cause_analysis.md.
+Every field here exists because it was traced back to a specific Discovery
+or Root Cause Analysis finding — none of these are "fields that sound
+useful". See docs/02_discovery_notes.md and docs/03_root_cause_analysis.md.
 """
 
 from enum import Enum
@@ -11,10 +11,10 @@ from pydantic import BaseModel, Field
 
 
 class Urgency(str, Enum):
-    """Nível de prioridade do handoff.
+    """Priority level of the handoff.
 
-    Origem: Discovery, Seção 4 (critério de sucesso) — casos sensíveis
-    precisam de sinalização de prioridade diferenciada.
+    Source: Discovery, Section 4 (success criteria) — sensitive cases need
+    differentiated priority signaling.
     """
     LOW = "low"
     MEDIUM = "medium"
@@ -22,37 +22,42 @@ class Urgency(str, Enum):
 
 
 class HandoverPackage(BaseModel):
-    """Pacote estruturado de handoff, gerado a partir da transcrição bot+cliente."""
+    """Structured handoff package generated from a bot+customer transcript."""
 
     handoff_needed: bool = Field(
-        description="Se a conversa realmente precisa ser transferida para um humano."
+        description=(
+            "Whether the conversation actually needs to be transferred to "
+            "a human."
+        )
     )
 
     reason: str = Field(
+        min_length=1,
         description=(
-            "Motivo específico da transferência (ex: 'billing_dispute', "
-            "'account_status_issue'). Origem: Root Cause Achado 2 — o motivo "
-            "precisa ser explícito, não implícito."
+            "Specific reason for the transfer (e.g. 'billing_dispute', "
+            "'account_status_issue'). Source: Root Cause Finding 2 — the "
+            "reason must be explicit, not implicit. "
+            "This field must not be empty."
         )
     )
 
     summary: str = Field(
         description=(
-            "Resumo do que já foi tentado pelo bot antes do handoff. "
-            "Origem: Discovery Requisito R2."
+            "Summary of what the bot already attempted before the handoff. "
+            "Source: Discovery Requirement R2."
         )
     )
 
     urgency: Urgency = Field(
-        description="Prioridade do caso. Origem: Discovery Requisito R3."
+        description="Priority of the case. Source: Discovery Requirement R3."
     )
 
     suggested_team: str = Field(
         description=(
-            "Time/fila sugerido para receber o caso. Origem: Discovery "
-            "Requisito R4. Nota: o processo atual permite correção manual "
-            "pelo agente — este campo é uma sugestão, não uma decisão final "
-            "irreversível."
+            "Team/queue suggested to receive the case. Source: Discovery "
+            "Requirement R4. Note: the current process allows manual "
+            "correction by the receiving agent — this field is a "
+            "suggestion, not an irreversible final decision."
         )
     )
 
@@ -60,17 +65,18 @@ class HandoverPackage(BaseModel):
         ge=0.0,
         le=1.0,
         description=(
-            "Confiança do modelo na classificação acima (0 a 1). Existe "
-            "porque, ao tornar a decisão um artefato explícito (Root Cause), "
-            "ela também precisa carregar o quão confiável é — evita tratar "
-            "uma decisão incerta como se fosse certeza."
+            "Model's confidence in the classification above (0 to 1). "
+            "Exists because, by turning the decision into an explicit "
+            "artifact (Root Cause), it also needs to carry how reliable it "
+            "is — this avoids treating an uncertain decision as if it were "
+            "certain."
         ),
     )
 
     flags: list[str] = Field(
         default_factory=list,
         description=(
-            "Sinalizadores adicionais (ex: 'repeat_contact', "
-            "'sensitive_case'). Origem: Discovery Requisito R3."
+            "Additional flags (e.g. 'repeat_contact', 'sensitive_case'). "
+            "Source: Discovery Requirement R3."
         ),
     )
