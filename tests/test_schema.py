@@ -55,6 +55,7 @@ def test_creation_fails_when_required_field_is_missing():
             flags=["repeat_contact"],
         )
 
+
 def test_creation_fails_when_reason_field_is_empty_string():
     with pytest.raises(ValidationError):
         HandoverPackage(

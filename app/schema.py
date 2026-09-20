@@ -7,7 +7,28 @@ useful". See docs/02_discovery_notes.md and docs/03_root_cause_analysis.md.
 """
 
 from enum import Enum
+
 from pydantic import BaseModel, Field
+
+
+class Role(str, Enum):
+    """Speaker role in a transcript message."""
+
+    BOT = "bot"
+    CUSTOMER = "customer"
+
+
+class Message(BaseModel):
+    """A single turn in a bot/customer conversation."""
+
+    role: Role
+    content: str
+
+
+class TranscriptRequest(BaseModel):
+    """Request body for the handover endpoint."""
+
+    messages: list[Message]
 
 
 class Urgency(str, Enum):
@@ -16,9 +37,17 @@ class Urgency(str, Enum):
     Source: Discovery, Section 4 (success criteria) — sensitive cases need
     differentiated priority signaling.
     """
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+
+class Team(str, Enum):
+
+    BILLING = "billing"
+    TECHNICAL = "technical"
+    ESCALATIONS = "escalations"
 
 
 class HandoverPackage(BaseModel):
@@ -26,8 +55,7 @@ class HandoverPackage(BaseModel):
 
     handoff_needed: bool = Field(
         description=(
-            "Whether the conversation actually needs to be transferred to "
-            "a human."
+            "Whether the conversation actually needs to be transferred to " "a human."
         )
     )
 
@@ -38,7 +66,7 @@ class HandoverPackage(BaseModel):
             "'account_status_issue'). Source: Root Cause Finding 2 — the "
             "reason must be explicit, not implicit. "
             "This field must not be empty."
-        )
+        ),
     )
 
     summary: str = Field(
@@ -52,7 +80,7 @@ class HandoverPackage(BaseModel):
         description="Priority of the case. Source: Discovery Requirement R3."
     )
 
-    suggested_team: str = Field(
+    suggested_team: Team = Field(
         description=(
             "Team/queue suggested to receive the case. Source: Discovery "
             "Requirement R4. Note: the current process allows manual "
