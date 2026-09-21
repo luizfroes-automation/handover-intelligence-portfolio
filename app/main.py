@@ -2,7 +2,8 @@
 
 from fastapi import FastAPI
 
-from app.schema import HandoverPackage, Team, TranscriptRequest, Urgency
+from app.llm_client import generate_handover_package
+from app.schema import HandoverPackage, TranscriptRequest
 
 app = FastAPI()
 
@@ -10,12 +11,8 @@ app = FastAPI()
 @app.post("/handover")
 def create_handover(request: TranscriptRequest) -> HandoverPackage:
     """Generate a handover package from a conversation transcript."""
-    return HandoverPackage(
-        handoff_needed=True,
-        reason="billing_dispute",
-        summary="Bot tried to resolve a duplicate charge before the handoff.",
-        urgency=Urgency.HIGH,
-        suggested_team=Team.BILLING,
-        confidence=0.87,
-        flags=["repeat_contact"],
-    )
+    transcript = [
+        {"role": message.role.value, "content": message.content}
+        for message in request.messages
+    ]
+    return generate_handover_package(transcript)
