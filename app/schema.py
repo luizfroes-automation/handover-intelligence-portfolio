@@ -28,7 +28,7 @@ class Message(BaseModel):
 class TranscriptRequest(BaseModel):
     """Request body for the handover endpoint."""
 
-    messages: list[Message]
+    messages: list[Message] = Field(min_length=1)
 
 
 class Urgency(str, Enum):

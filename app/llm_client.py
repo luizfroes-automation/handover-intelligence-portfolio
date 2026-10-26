@@ -2,10 +2,17 @@
 
 import os
 
+import httpx
 from dotenv import load_dotenv
 from google import genai
-from google.genai import types
+from google.genai import errors, types
+from pydantic import ValidationError
 
+from app.errors import (
+    InvalidLLMResponseError,
+    LLMConfigurationError,
+    ProviderUnavailableError,
+)
 from app.schema import HandoverPackage
 
 load_dotenv()
@@ -44,15 +51,40 @@ def _format_transcript(transcript: list[dict]) -> str:
 def generate_handover_package(transcript: list[dict]) -> HandoverPackage:
     """Analyze a transcript and return a validated handover package."""
     formatted = _format_transcript(transcript)
-    response = _get_client().models.generate_content(
-        model=_MODEL,
-        contents=formatted,
-        config=types.GenerateContentConfig(
-            system_instruction=_SYSTEM_INSTRUCTION,
-            response_mime_type="application/json",
-            response_schema=HandoverPackage,
-        ),
-    )
+    client = _get_client()
+    try:
+        response = client.models.generate_content(
+            model=_MODEL,
+            contents=formatted,
+            config=types.GenerateContentConfig(
+                system_instruction=_SYSTEM_INSTRUCTION,
+                response_mime_type="application/json",
+                response_schema=HandoverPackage,
+            ),
+        )
+    except httpx.TimeoutException as exc:
+        raise ProviderUnavailableError("LLM provider request timed out") from exc
+    except httpx.ConnectError as exc:
+        raise ProviderUnavailableError("LLM provider is unreachable") from exc
+    except errors.ServerError as exc:
+        raise ProviderUnavailableError(
+            "LLM provider failed to serve the request"
+        ) from exc
+    except errors.ClientError as exc:
+        raise LLMConfigurationError(
+            "LLM provider rejected the client configuration"
+        ) from exc
+
+    # Uma resposta sem saída estruturada não tem exceção do provider para
+    # encadear: a falha está no conteúdo devolvido, não no transporte.
+    if response.parsed is None:
+        raise InvalidLLMResponseError("LLM provider returned no structured output")
+
     # response.parsed já vem como HandoverPackage; model_validate mantido
     # como segunda barreira caso o SDK mude o formato de retorno no futuro.
-    return HandoverPackage.model_validate(response.parsed)
+    try:
+        return HandoverPackage.model_validate(response.parsed)
+    except ValidationError as exc:
+        raise InvalidLLMResponseError(
+            "LLM provider output does not match the handover package schema"
+        ) from exc
