@@ -1,0 +1,113 @@
+"""Tests for the LLM client error handling and success path."""
+
+from unittest import mock
+
+import httpx
+import pytest
+from google.genai import errors
+
+from app import llm_client
+from app.schema import HandoverPackage, Team, Urgency
+
+TRANSCRIPT = [
+    {"role": "bot", "content": "Hello! How can I help you today?"},
+    {"role": "customer", "content": "I was charged twice for my last order."},
+]
+
+
+@pytest.fixture
+def fake_client(monkeypatch):
+    client = mock.MagicMock()
+    # Substitui a função que entrega o cliente, não a variável de módulo.
+    monkeypatch.setattr(llm_client, "_get_client", lambda: client)
+    return client
+
+
+def _valid_package() -> HandoverPackage:
+    return HandoverPackage(
+        handoff_needed=True,
+        reason="billing_dispute",
+        summary="Bot tried to resolve a duplicate charge before the handoff.",
+        urgency=Urgency.HIGH,
+        suggested_team=Team.BILLING,
+        confidence=0.87,
+        flags=["repeat_contact"],
+    )
+
+
+def test_connect_error_raises_provider_unavailable_error(fake_client):
+    from app.errors import ProviderUnavailableError
+
+    fake_client.models.generate_content.side_effect = httpx.ConnectError(
+        "connection refused"
+    )
+
+    with pytest.raises(ProviderUnavailableError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert isinstance(exc_info.value.__cause__, httpx.ConnectError)
+
+
+def test_server_error_raises_provider_unavailable_error(fake_client):
+    from app.errors import ProviderUnavailableError
+
+    fake_client.models.generate_content.side_effect = errors.ServerError(
+        503, {"error": {"message": "service unavailable"}}
+    )
+
+    with pytest.raises(ProviderUnavailableError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert isinstance(exc_info.value.__cause__, errors.ServerError)
+
+
+def test_client_error_raises_llm_configuration_error(fake_client):
+    from app.errors import LLMConfigurationError
+
+    fake_client.models.generate_content.side_effect = errors.ClientError(
+        404, {"error": {"message": "model not found"}}
+    )
+
+    with pytest.raises(LLMConfigurationError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert isinstance(exc_info.value.__cause__, errors.ClientError)
+
+
+def test_timeout_raises_provider_unavailable_error(fake_client):
+    from app.errors import ProviderUnavailableError
+
+    fake_client.models.generate_content.side_effect = httpx.TimeoutException(
+        "request timed out"
+    )
+
+    with pytest.raises(ProviderUnavailableError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert isinstance(exc_info.value.__cause__, httpx.TimeoutException)
+
+
+def test_parsed_none_raises_invalid_llm_response_error(fake_client):
+    from app.errors import InvalidLLMResponseError
+
+    response = mock.MagicMock()
+    response.parsed = None
+    fake_client.models.generate_content.return_value = response
+
+    with pytest.raises(InvalidLLMResponseError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    # Uma resposta sem saída estruturada não tem exceção do provider para encadear.
+    assert exc_info.value.__cause__ is None
+
+
+def test_valid_response_returns_handover_package(fake_client):
+    package = _valid_package()
+    response = mock.MagicMock()
+    response.parsed = package
+    fake_client.models.generate_content.return_value = response
+
+    result = llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert isinstance(result, HandoverPackage)
+    assert result == package
