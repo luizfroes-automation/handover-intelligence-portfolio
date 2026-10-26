@@ -101,6 +101,23 @@ def test_parsed_none_raises_invalid_llm_response_error(fake_client):
     assert exc_info.value.__cause__ is None
 
 
+def test_schema_violation_raises_invalid_llm_response_error(fake_client):
+    from pydantic import ValidationError
+
+    from app.errors import InvalidLLMResponseError
+
+    payload = _valid_package().model_dump()
+    payload["confidence"] = 1.5
+    response = mock.MagicMock()
+    response.parsed = payload
+    fake_client.models.generate_content.return_value = response
+
+    with pytest.raises(InvalidLLMResponseError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert isinstance(exc_info.value.__cause__, ValidationError)
+
+
 def test_valid_response_returns_handover_package(fake_client):
     package = _valid_package()
     response = mock.MagicMock()
