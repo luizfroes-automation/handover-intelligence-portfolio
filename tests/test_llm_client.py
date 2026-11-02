@@ -128,3 +128,17 @@ def test_valid_response_returns_handover_package(fake_client):
 
     assert isinstance(result, HandoverPackage)
     assert result == package
+
+
+def test_missing_api_key_raises_llm_configuration_error(monkeypatch):
+    from app.errors import LLMConfigurationError
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setattr(llm_client, "_API_KEY", None)
+    monkeypatch.setattr(llm_client, "_client", None)
+
+    with pytest.raises(LLMConfigurationError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert exc_info.value.__cause__ is None
