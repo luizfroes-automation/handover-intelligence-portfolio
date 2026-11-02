@@ -186,3 +186,22 @@ def test_resolve_api_key_strips_surrounding_whitespace():
     resolved = llm_client._resolve_api_key({"GEMINI_API_KEY": "  abc  "})
 
     assert resolved == "abc"
+
+
+def test_schema_violation_hides_transcript_content(fake_client):
+    from pydantic import ValidationError
+
+    from app.errors import InvalidLLMResponseError
+
+    payload = {"summary": "CUSTOMER-DATA-MARKER"}
+    response = mock.MagicMock()
+    response.parsed = payload
+    fake_client.models.generate_content.return_value = response
+
+    with pytest.raises(InvalidLLMResponseError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert isinstance(exc_info.value.__cause__, ValidationError)
+    message = str(exc_info.value.__cause__)
+    assert "CUSTOMER-DATA-MARKER" not in message
+    assert "reason" in message
