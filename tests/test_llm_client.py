@@ -142,3 +142,49 @@ def test_missing_api_key_raises_llm_configuration_error(monkeypatch):
         llm_client.generate_handover_package(TRANSCRIPT)
 
     assert exc_info.value.__cause__ is None
+
+
+def test_resolve_api_key_prefers_gemini_when_both_are_set():
+    resolved = llm_client._resolve_api_key(
+        {"GEMINI_API_KEY": "gemini-key", "GOOGLE_API_KEY": "google-key"}
+    )
+
+    assert resolved == "gemini-key"
+
+
+def test_resolve_api_key_falls_back_to_google():
+    resolved = llm_client._resolve_api_key({"GOOGLE_API_KEY": "google-key"})
+
+    assert resolved == "google-key"
+
+
+def test_resolve_api_key_treats_empty_gemini_as_absent():
+    resolved = llm_client._resolve_api_key(
+        {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": "google-key"}
+    )
+
+    assert resolved == "google-key"
+
+
+def test_resolve_api_key_treats_blank_gemini_as_absent():
+    resolved = llm_client._resolve_api_key(
+        {"GEMINI_API_KEY": "   ", "GOOGLE_API_KEY": "google-key"}
+    )
+
+    assert resolved == "google-key"
+
+
+def test_resolve_api_key_returns_none_when_no_key_is_set():
+    assert llm_client._resolve_api_key({}) is None
+    assert (
+        llm_client._resolve_api_key(
+            {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": ""}
+        )
+        is None
+    )
+
+
+def test_resolve_api_key_strips_surrounding_whitespace():
+    resolved = llm_client._resolve_api_key({"GEMINI_API_KEY": "  abc  "})
+
+    assert resolved == "abc"
