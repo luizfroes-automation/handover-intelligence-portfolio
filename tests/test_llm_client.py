@@ -177,9 +177,7 @@ def test_resolve_api_key_treats_blank_gemini_as_absent():
 def test_resolve_api_key_returns_none_when_no_key_is_set():
     assert llm_client._resolve_api_key({}) is None
     assert (
-        llm_client._resolve_api_key(
-            {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": ""}
-        )
+        llm_client._resolve_api_key({"GEMINI_API_KEY": "", "GOOGLE_API_KEY": ""})
         is None
     )
 
