@@ -26,6 +26,8 @@ _client: genai.Client | None = None
 def _get_client() -> genai.Client:
     global _client
     if _client is None:
+        if not _API_KEY:
+            raise LLMConfigurationError("GEMINI_API_KEY is not set")
         _client = genai.Client(api_key=_API_KEY)
     return _client
 
