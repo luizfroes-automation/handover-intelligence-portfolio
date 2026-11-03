@@ -128,3 +128,82 @@ def test_valid_response_returns_handover_package(fake_client):
 
     assert isinstance(result, HandoverPackage)
     assert result == package
+
+
+def test_missing_api_key_raises_llm_configuration_error(monkeypatch):
+    from app.errors import LLMConfigurationError
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setattr(llm_client, "_API_KEY", None)
+    monkeypatch.setattr(llm_client, "_client", None)
+
+    with pytest.raises(
+        LLMConfigurationError, match="GEMINI_API_KEY or GOOGLE_API_KEY"
+    ) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert exc_info.value.__cause__ is None
+
+
+def test_resolve_api_key_prefers_gemini_when_both_are_set():
+    resolved = llm_client._resolve_api_key(
+        {"GEMINI_API_KEY": "gemini-key", "GOOGLE_API_KEY": "google-key"}
+    )
+
+    assert resolved == "gemini-key"
+
+
+def test_resolve_api_key_falls_back_to_google():
+    resolved = llm_client._resolve_api_key({"GOOGLE_API_KEY": "google-key"})
+
+    assert resolved == "google-key"
+
+
+def test_resolve_api_key_treats_empty_gemini_as_absent():
+    resolved = llm_client._resolve_api_key(
+        {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": "google-key"}
+    )
+
+    assert resolved == "google-key"
+
+
+def test_resolve_api_key_treats_blank_gemini_as_absent():
+    resolved = llm_client._resolve_api_key(
+        {"GEMINI_API_KEY": "   ", "GOOGLE_API_KEY": "google-key"}
+    )
+
+    assert resolved == "google-key"
+
+
+def test_resolve_api_key_returns_none_when_no_key_is_set():
+    assert llm_client._resolve_api_key({}) is None
+    assert (
+        llm_client._resolve_api_key({"GEMINI_API_KEY": "", "GOOGLE_API_KEY": ""})
+        is None
+    )
+
+
+def test_resolve_api_key_strips_surrounding_whitespace():
+    resolved = llm_client._resolve_api_key({"GEMINI_API_KEY": "  abc  "})
+
+    assert resolved == "abc"
+
+
+def test_schema_violation_hides_transcript_content(fake_client):
+    from pydantic import ValidationError
+
+    from app.errors import InvalidLLMResponseError
+
+    payload = {"summary": "CUSTOMER-DATA-MARKER"}
+    response = mock.MagicMock()
+    response.parsed = payload
+    fake_client.models.generate_content.return_value = response
+
+    with pytest.raises(InvalidLLMResponseError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert isinstance(exc_info.value.__cause__, ValidationError)
+    message = str(exc_info.value.__cause__)
+    assert "CUSTOMER-DATA-MARKER" not in message
+    assert "reason" in message

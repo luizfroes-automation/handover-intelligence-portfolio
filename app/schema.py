@@ -8,7 +8,7 @@ useful". See docs/02_discovery_notes.md and docs/03_root_cause_analysis.md.
 
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Role(str, Enum):
@@ -52,6 +52,8 @@ class Team(str, Enum):
 
 class HandoverPackage(BaseModel):
     """Structured handoff package generated from a bot+customer transcript."""
+
+    model_config = ConfigDict(hide_input_in_errors=True)
 
     handoff_needed: bool = Field(
         description=(

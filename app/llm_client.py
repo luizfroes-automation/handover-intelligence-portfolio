@@ -1,6 +1,7 @@
 """LLM client responsible for generating structured handover packages."""
 
 import os
+from collections.abc import Mapping
 
 import httpx
 from dotenv import load_dotenv
@@ -17,8 +18,21 @@ from app.schema import HandoverPackage
 
 load_dotenv()
 
+
+def _resolve_api_key(environ: Mapping[str, str] | None = None) -> str | None:
+    """Return the API key, preferring GEMINI_API_KEY over GOOGLE_API_KEY.
+
+    When both variables hold a value, GEMINI_API_KEY wins, which is the
+    opposite of the SDK's default precedence. Blank values count as unset.
+    """
+    source = os.environ if environ is None else environ
+    gemini_key = (source.get("GEMINI_API_KEY") or "").strip()
+    google_key = (source.get("GOOGLE_API_KEY") or "").strip()
+    return gemini_key or google_key or None
+
+
 _MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
-_API_KEY = os.getenv("GEMINI_API_KEY")
+_API_KEY = _resolve_api_key()
 
 _client: genai.Client | None = None
 
@@ -26,6 +40,8 @@ _client: genai.Client | None = None
 def _get_client() -> genai.Client:
     global _client
     if _client is None:
+        if not _API_KEY:
+            raise LLMConfigurationError("GEMINI_API_KEY or GOOGLE_API_KEY is not set")
         _client = genai.Client(api_key=_API_KEY)
     return _client
 
