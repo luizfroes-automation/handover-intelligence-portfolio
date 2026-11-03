@@ -95,3 +95,21 @@ Durante a execução da suíte de testes, o provider respondeu 503 ("high demand
 a uma chamada real. O log registrou `LLM provider unavailable` com a
 `ProviderUnavailableError` encadeada ao `ServerError` original, e o endpoint
 respondeu 503.
+
+## Observação — variância de tempo da suíte
+
+A mesma suíte levou cerca de 170 s em uma execução e 6,23 s em outra. A diferença
+está inteiramente no teste que chama o provider real: 5,52 s na segunda execução,
+terminando em 503, contra milissegundos para todo o resto. Sem timeout
+configurado, o tempo depende de como o provider responde. Ver the planned timeout and retry e
+the live-split work.
+
+## Comando da suíte sem o teste que chama o provider
+
+```powershell
+python -m pytest --ignore=tests/llm_manual_test.py --deselect tests/test_api.py::test_post_handover_returns_valid_handover_package -v
+```
+
+Resultado: 26 coletados, 1 deselecionado, 25 passed. O deselecionado é o teste
+de integração `tests/test_api.py::test_post_handover_returns_valid_handover_package`;
+a separação por marcador fica no the live-split work.
