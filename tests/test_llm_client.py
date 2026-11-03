@@ -138,7 +138,9 @@ def test_missing_api_key_raises_llm_configuration_error(monkeypatch):
     monkeypatch.setattr(llm_client, "_API_KEY", None)
     monkeypatch.setattr(llm_client, "_client", None)
 
-    with pytest.raises(LLMConfigurationError) as exc_info:
+    with pytest.raises(
+        LLMConfigurationError, match="GEMINI_API_KEY or GOOGLE_API_KEY"
+    ) as exc_info:
         llm_client.generate_handover_package(TRANSCRIPT)
 
     assert exc_info.value.__cause__ is None
