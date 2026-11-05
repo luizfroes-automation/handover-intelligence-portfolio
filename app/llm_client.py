@@ -38,6 +38,7 @@ _client: genai.Client | None = None
 
 
 def _get_client() -> genai.Client:
+    """Return the shared client, creating it on first use."""
     global _client
     if _client is None:
         if not _API_KEY:
@@ -56,6 +57,7 @@ _SYSTEM_INSTRUCTION = (
 
 
 def _format_transcript(transcript: list[dict]) -> str:
+    """Render the transcript as one role-prefixed line per message."""
     lines: list[str] = []
     for message in transcript:
         role = message.get("role", "unknown")

@@ -1,7 +1,17 @@
+"""Tests for the handover endpoint error contract."""
+
+from unittest import mock
+
 from fastapi.testclient import TestClient
 
+from app.errors import (
+    InvalidLLMResponseError,
+    LLMConfigurationError,
+    ProviderUnavailableError,
+)
+from app.llm_client import generate_handover_package
 from app.main import app
-from app.schema import HandoverPackage
+from app.schema import HandoverPackage, Team, Urgency
 
 client = TestClient(app)
 
@@ -34,17 +44,17 @@ def test_post_handover_returns_valid_handover_package():
 
 
 def test_empty_messages_is_rejected_before_the_llm(monkeypatch):
-    from unittest import mock
-
     package = HandoverPackage(
         handoff_needed=True,
         reason="billing_dispute",
         summary="Duplicate charge requires human review.",
-        urgency="high",
-        suggested_team="billing",
+        urgency=Urgency.HIGH,
+        suggested_team=Team.BILLING,
         confidence=0.9,
     )
-    fake_generate = mock.MagicMock(return_value=package)
+    fake_generate = mock.create_autospec(
+        generate_handover_package, return_value=package
+    )
     monkeypatch.setattr("app.main.generate_handover_package", fake_generate)
 
     response = client.post("/handover", json={"messages": []})
@@ -54,12 +64,9 @@ def test_empty_messages_is_rejected_before_the_llm(monkeypatch):
 
 
 def test_provider_unavailable_returns_503(monkeypatch):
-    from unittest import mock
-
-    from app.errors import ProviderUnavailableError
-
-    fake_generate = mock.MagicMock(
-        side_effect=ProviderUnavailableError("provider is down")
+    fake_generate = mock.create_autospec(
+        generate_handover_package,
+        side_effect=ProviderUnavailableError("provider is down"),
     )
     monkeypatch.setattr("app.main.generate_handover_package", fake_generate)
 
@@ -70,17 +77,14 @@ def test_provider_unavailable_returns_503(monkeypatch):
     assert response.status_code == 503
     assert response.json() == {
         "error": "provider_unavailable",
-        "detail": ("The LLM provider is temporarily unavailable. Please retry later."),
+        "detail": "The LLM provider is temporarily unavailable. Please retry later.",
     }
 
 
 def test_invalid_llm_response_returns_502(monkeypatch):
-    from unittest import mock
-
-    from app.errors import InvalidLLMResponseError
-
-    fake_generate = mock.MagicMock(
-        side_effect=InvalidLLMResponseError("output does not match the contract")
+    fake_generate = mock.create_autospec(
+        generate_handover_package,
+        side_effect=InvalidLLMResponseError("output does not match the contract"),
     )
     monkeypatch.setattr("app.main.generate_handover_package", fake_generate)
 
@@ -99,12 +103,9 @@ def test_invalid_llm_response_returns_502(monkeypatch):
 
 
 def test_llm_configuration_error_returns_500(monkeypatch):
-    from unittest import mock
-
-    from app.errors import LLMConfigurationError
-
-    fake_generate = mock.MagicMock(
-        side_effect=LLMConfigurationError("client rejected by the provider")
+    fake_generate = mock.create_autospec(
+        generate_handover_package,
+        side_effect=LLMConfigurationError("client rejected by the provider"),
     )
     monkeypatch.setattr("app.main.generate_handover_package", fake_generate)
 
@@ -120,9 +121,9 @@ def test_llm_configuration_error_returns_500(monkeypatch):
 
 
 def test_unexpected_error_returns_generic_500(monkeypatch):
-    from unittest import mock
-
-    fake_generate = mock.MagicMock(side_effect=RuntimeError("boom"))
+    fake_generate = mock.create_autospec(
+        generate_handover_package, side_effect=RuntimeError("boom")
+    )
     monkeypatch.setattr("app.main.generate_handover_package", fake_generate)
     failing_client = TestClient(app, raise_server_exceptions=False)
 

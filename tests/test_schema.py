@@ -1,7 +1,9 @@
+"""Tests for the HandoverPackage validation contract."""
+
 import pytest
 from pydantic import ValidationError
 
-from app.schema import HandoverPackage, Urgency
+from app.schema import HandoverPackage, Team, Urgency
 
 
 def test_handover_package_created_with_valid_fields():
@@ -10,7 +12,7 @@ def test_handover_package_created_with_valid_fields():
         reason="billing_dispute",
         summary="Bot tried to refund a duplicate charge, customer asked for a human.",
         urgency=Urgency.HIGH,
-        suggested_team="billing",
+        suggested_team=Team.BILLING,
         confidence=0.87,
         flags=["repeat_contact"],
     )
@@ -25,7 +27,7 @@ def test_creation_fails_with_urgency_value_outside_enum():
             reason="billing_dispute",
             summary="Bot tried to refund a duplicate charge, customer asked for a human.",
             urgency="banana",
-            suggested_team="billing",
+            suggested_team=Team.BILLING,
             confidence=0.87,
             flags=["repeat_contact"],
         )
@@ -38,7 +40,7 @@ def test_creation_fails_when_confidence_exceeds_maximum():
             reason="billing_dispute",
             summary="Bot tried to refund a duplicate charge, customer asked for a human.",
             urgency=Urgency.HIGH,
-            suggested_team="billing",
+            suggested_team=Team.BILLING,
             confidence=1.5,
             flags=["repeat_contact"],
         )
@@ -50,7 +52,7 @@ def test_creation_fails_when_required_field_is_missing():
             reason="billing_dispute",
             summary="Bot tried to refund a duplicate charge, customer asked for a human.",
             urgency=Urgency.HIGH,
-            suggested_team="billing",
+            suggested_team=Team.BILLING,
             confidence=0.87,
             flags=["repeat_contact"],
         )
@@ -63,7 +65,7 @@ def test_creation_fails_when_reason_field_is_empty_string():
             reason="",
             summary="Bot tried to refund a duplicate charge, customer asked for a human.",
             urgency=Urgency.HIGH,
-            suggested_team="billing",
+            suggested_team=Team.BILLING,
             confidence=0.87,
             flags=["repeat_contact"],
         )

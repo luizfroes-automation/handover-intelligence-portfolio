@@ -44,6 +44,7 @@ class Urgency(str, Enum):
 
 
 class Team(str, Enum):
+    """Team or queue that receives the handoff."""
 
     BILLING = "billing"
     TECHNICAL = "technical"
@@ -57,7 +58,7 @@ class HandoverPackage(BaseModel):
 
     handoff_needed: bool = Field(
         description=(
-            "Whether the conversation actually needs to be transferred to " "a human."
+            "Whether the conversation actually needs to be transferred to a human."
         )
     )
 

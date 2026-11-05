@@ -5,8 +5,14 @@ from unittest import mock
 import httpx
 import pytest
 from google.genai import errors
+from pydantic import ValidationError
 
 from app import llm_client
+from app.errors import (
+    InvalidLLMResponseError,
+    LLMConfigurationError,
+    ProviderUnavailableError,
+)
 from app.schema import HandoverPackage, Team, Urgency
 
 TRANSCRIPT = [
@@ -17,8 +23,8 @@ TRANSCRIPT = [
 
 @pytest.fixture
 def fake_client(monkeypatch):
-    client = mock.MagicMock()
     # Substitui a função que entrega o cliente, não a variável de módulo.
+    client = mock.MagicMock(spec=["models"])
     monkeypatch.setattr(llm_client, "_get_client", lambda: client)
     return client
 
@@ -36,8 +42,6 @@ def _valid_package() -> HandoverPackage:
 
 
 def test_connect_error_raises_provider_unavailable_error(fake_client):
-    from app.errors import ProviderUnavailableError
-
     fake_client.models.generate_content.side_effect = httpx.ConnectError(
         "connection refused"
     )
@@ -49,8 +53,6 @@ def test_connect_error_raises_provider_unavailable_error(fake_client):
 
 
 def test_server_error_raises_provider_unavailable_error(fake_client):
-    from app.errors import ProviderUnavailableError
-
     fake_client.models.generate_content.side_effect = errors.ServerError(
         503, {"error": {"message": "service unavailable"}}
     )
@@ -62,8 +64,6 @@ def test_server_error_raises_provider_unavailable_error(fake_client):
 
 
 def test_client_error_raises_llm_configuration_error(fake_client):
-    from app.errors import LLMConfigurationError
-
     fake_client.models.generate_content.side_effect = errors.ClientError(
         404, {"error": {"message": "model not found"}}
     )
@@ -75,8 +75,6 @@ def test_client_error_raises_llm_configuration_error(fake_client):
 
 
 def test_timeout_raises_provider_unavailable_error(fake_client):
-    from app.errors import ProviderUnavailableError
-
     fake_client.models.generate_content.side_effect = httpx.TimeoutException(
         "request timed out"
     )
@@ -88,9 +86,7 @@ def test_timeout_raises_provider_unavailable_error(fake_client):
 
 
 def test_parsed_none_raises_invalid_llm_response_error(fake_client):
-    from app.errors import InvalidLLMResponseError
-
-    response = mock.MagicMock()
+    response = mock.Mock(spec=["parsed"])
     response.parsed = None
     fake_client.models.generate_content.return_value = response
 
@@ -102,13 +98,9 @@ def test_parsed_none_raises_invalid_llm_response_error(fake_client):
 
 
 def test_schema_violation_raises_invalid_llm_response_error(fake_client):
-    from pydantic import ValidationError
-
-    from app.errors import InvalidLLMResponseError
-
     payload = _valid_package().model_dump()
     payload["confidence"] = 1.5
-    response = mock.MagicMock()
+    response = mock.Mock(spec=["parsed"])
     response.parsed = payload
     fake_client.models.generate_content.return_value = response
 
@@ -120,7 +112,7 @@ def test_schema_violation_raises_invalid_llm_response_error(fake_client):
 
 def test_valid_response_returns_handover_package(fake_client):
     package = _valid_package()
-    response = mock.MagicMock()
+    response = mock.Mock(spec=["parsed"])
     response.parsed = package
     fake_client.models.generate_content.return_value = response
 
@@ -131,8 +123,6 @@ def test_valid_response_returns_handover_package(fake_client):
 
 
 def test_missing_api_key_raises_llm_configuration_error(monkeypatch):
-    from app.errors import LLMConfigurationError
-
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.setattr(llm_client, "_API_KEY", None)
@@ -191,12 +181,8 @@ def test_resolve_api_key_strips_surrounding_whitespace():
 
 
 def test_schema_violation_hides_transcript_content(fake_client):
-    from pydantic import ValidationError
-
-    from app.errors import InvalidLLMResponseError
-
     payload = {"summary": "CUSTOMER-DATA-MARKER"}
-    response = mock.MagicMock()
+    response = mock.Mock(spec=["parsed"])
     response.parsed = payload
     fake_client.models.generate_content.return_value = response
 
