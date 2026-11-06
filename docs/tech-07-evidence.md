@@ -2,8 +2,12 @@
 
 **Date:** 6 November 2026.
 **Environment:** Windows, PowerShell 5.1, Python 3.14.7, `.venv` at the project root.
-**Keys:** empty (`$env:GEMINI_API_KEY=""; $env:GOOGLE_API_KEY=""`) in every run of the
-default suite. No provider call.
+**Keys:** the variables were emptied in PowerShell, which **deletes** a variable set to an
+empty string: the `.env` restored the real key at import, verified on 6 November 2026
+(`Test-Path Env:GEMINI_API_KEY` → `False` and `llm_client._API_KEY is None` → `False`). The
+guarantee of no provider call comes from `-m 'not live'`, which deselects the seven `live`
+tests, not from the key. The runs that needed a genuinely empty key used the environment
+mapping, in the default-model evidence.
 
 ---
 
