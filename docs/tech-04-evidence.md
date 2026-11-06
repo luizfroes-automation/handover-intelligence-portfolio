@@ -1,13 +1,14 @@
-# Evidência — tratamento de erro do endpoint /handover
+# Evidence — error handling of the /handover endpoint
 
-Execução local com `python -m uvicorn app.main:app` e chamadas pelo Swagger UI
-(`http://127.0.0.1:8000/docs`), em 26 de outubro de 2026.
+Local run with `python -m uvicorn app.main:app` and calls through Swagger UI
+(`http://127.0.0.1:8000/docs`), on 26 October 2026.
 
-## Cenário 1 — modelo inexistente (erro de configuração do provider)
+## Scenario 1 — non-existent model (provider configuration error)
 
-**Como foi provocado:** `$env:GEMINI_MODEL = "modelo-inexistente"` antes de subir o servidor.
+**How it was provoked:** `$env:GEMINI_MODEL = "model-that-does-not-exist"` before starting
+the server.
 
-**Requisição:**
+**Request:**
 
 ```json
 {
@@ -18,7 +19,7 @@ Execução local com `python -m uvicorn app.main:app` e chamadas pelo Swagger UI
 }
 ```
 
-**Resposta (status 500):**
+**Response (status 500):**
 
 ```json
 {
@@ -27,19 +28,19 @@ Execução local com `python -m uvicorn app.main:app` e chamadas pelo Swagger UI
 }
 ```
 
-**Log do servidor (trecho):**
+**Server log (excerpt):**
 
 ```
 LLM client is misconfigured
 Traceback (most recent call last):
   File "...\app\llm_client.py", line 56, in generate_handover_package
     response = client.models.generate_content(
-[... frames do SDK omitidos ...]
-google.genai.errors.ClientError: 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/modelo-inexistente is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.', 'status': 'NOT_FOUND'}}
+[... SDK frames omitted ...]
+google.genai.errors.ClientError: 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/model-that-does-not-exist is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.', 'status': 'NOT_FOUND'}}
 
 The above exception was the direct cause of the following exception:
 
-[... frames do FastAPI omitidos ...]
+[... FastAPI frames omitted ...]
   File "...\app\llm_client.py", line 74, in generate_handover_package
     raise LLMConfigurationError(
         "LLM provider rejected the client configuration"
@@ -48,22 +49,22 @@ app.errors.LLMConfigurationError: LLM provider rejected the client configuration
 INFO:     127.0.0.1:62802 - "POST /handover HTTP/1.1" 500 Internal Server Error
 ```
 
-**O que demonstra:** o erro do provider chega ao cliente como um erro de domínio
-com corpo estável, sem stack trace nem mensagem do provider. A mensagem original
-do provider fica preservada no log, encadeada como causa.
+**What it demonstrates:** the provider error reaches the client as a domain error with a
+stable body, with no stack trace and no provider message. The original provider message is
+preserved in the log, chained as the cause.
 
-## Cenário 2 — transcript vazio (validação de entrada)
+## Scenario 2 — empty transcript (input validation)
 
-**Como foi provocado:** requisição com lista de mensagens vazia, mantendo o modelo
-inexistente configurado.
+**How it was provoked:** a request with an empty list of messages, keeping the non-existent
+model configured.
 
-**Requisição:**
+**Request:**
 
 ```json
 {"messages": []}
 ```
 
-**Resposta (status 422):**
+**Response (status 422):**
 
 ```json
 {
@@ -79,37 +80,35 @@ inexistente configurado.
 }
 ```
 
-**Log do servidor:**
+**Server log:**
 
 ```
 INFO:     127.0.0.1:58336 - "POST /handover HTTP/1.1" 422 Unprocessable Content
 ```
 
-**O que demonstra:** a requisição é rejeitada antes de chegar ao provider. Com o
-modelo inexistente ainda configurado, qualquer chamada ao provider resultaria em
-500; a resposta 422 sem nenhum erro no log confirma que o provider não foi chamado.
+**What it demonstrates:** the request is rejected before it reaches the provider. With the
+non-existent model still configured, any call to the provider would result in 500; the 422
+response with no error in the log confirms the provider was not called.
 
-## Observação — indisponibilidade real do provider
+## Observation — real provider unavailability
 
-Durante a execução da suíte de testes, o provider respondeu 503 ("high demand")
-a uma chamada real. O log registrou `LLM provider unavailable` com a
-`ProviderUnavailableError` encadeada ao `ServerError` original, e o endpoint
-respondeu 503.
+While the test suite was running, the provider answered 503 ("high demand") to a real call.
+The log recorded `LLM provider unavailable` with `ProviderUnavailableError` chained to the
+original `ServerError`, and the endpoint answered 503.
 
-## Observação — variância de tempo da suíte
+## Observation — suite timing variance
 
-A mesma suíte levou cerca de 170 s em uma execução e 6,23 s em outra. A diferença
-está inteiramente no teste que chama o provider real: 5,52 s na segunda execução,
-terminando em 503, contra milissegundos para todo o resto. Sem timeout
-configurado, o tempo depende de como o provider responde. Ver the planned timeout and retry e
-the live-split work.
+The same suite took about 170 s in one run and 6.23 s in another. The difference is entirely
+in the test that calls the real provider: 5.52 s in the second run, ending in 503, against
+milliseconds for everything else. With no timeout configured, the time depends on how the
+provider answers. See the planned timeout and retry and the live-split work.
 
-## Comando da suíte sem o teste que chama o provider
+## Suite command without the test that calls the provider
 
 ```powershell
 python -m pytest --ignore=tests/llm_manual_test.py --deselect tests/test_api.py::test_post_handover_returns_valid_handover_package -v
 ```
 
-Resultado: 26 coletados, 1 deselecionado, 25 passed. O deselecionado é o teste
-de integração `tests/test_api.py::test_post_handover_returns_valid_handover_package`;
-a separação por marcador fica no the live-split work.
+Result: 26 collected, 1 deselected, 25 passed. The deselected one is the integration test
+`tests/test_api.py::test_post_handover_returns_valid_handover_package`; splitting by marker
+is the live-split work.
