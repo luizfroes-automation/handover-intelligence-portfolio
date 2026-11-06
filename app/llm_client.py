@@ -93,13 +93,13 @@ def generate_handover_package(transcript: list[dict]) -> HandoverPackage:
             "LLM provider rejected the client configuration"
         ) from exc
 
-    # Uma resposta sem saída estruturada não tem exceção do provider para
-    # encadear: a falha está no conteúdo devolvido, não no transporte.
+    # A response without structured output has no provider exception to
+    # chain: the failure is in the content returned, not in the transport.
     if response.parsed is None:
         raise InvalidLLMResponseError("LLM provider returned no structured output")
 
-    # response.parsed já vem como HandoverPackage; model_validate mantido
-    # como segunda barreira caso o SDK mude o formato de retorno no futuro.
+    # response.parsed already arrives as a HandoverPackage; model_validate is
+    # kept as a second barrier in case the SDK changes its return format.
     try:
         return HandoverPackage.model_validate(response.parsed)
     except ValidationError as exc:

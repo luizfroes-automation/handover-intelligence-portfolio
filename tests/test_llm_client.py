@@ -23,7 +23,7 @@ TRANSCRIPT = [
 
 @pytest.fixture
 def fake_client(monkeypatch):
-    # Substitui a função que entrega o cliente, não a variável de módulo.
+    # Replaces the function that hands out the client, not the module variable.
     client = mock.MagicMock(spec=["models"])
     monkeypatch.setattr(llm_client, "_get_client", lambda: client)
     return client
@@ -93,7 +93,7 @@ def test_parsed_none_raises_invalid_llm_response_error(fake_client):
     with pytest.raises(InvalidLLMResponseError) as exc_info:
         llm_client.generate_handover_package(TRANSCRIPT)
 
-    # Uma resposta sem saída estruturada não tem exceção do provider para encadear.
+    # A response without structured output has no provider exception to chain.
     assert exc_info.value.__cause__ is None
 
 
