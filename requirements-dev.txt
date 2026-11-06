@@ -1,0 +1,6 @@
+# Development tools. Installs the runtime requirements first.
+-r requirements.txt
+
+black==26.5.1
+pytest==9.2.0
+ruff==0.16.8
