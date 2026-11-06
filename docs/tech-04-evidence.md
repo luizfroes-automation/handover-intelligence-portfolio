@@ -5,8 +5,9 @@ Local run with `python -m uvicorn app.main:app` and calls through Swagger UI
 
 ## Scenario 1 — non-existent model (provider configuration error)
 
-**How it was provoked:** `$env:GEMINI_MODEL = "model-that-does-not-exist"` before starting
-the server.
+**How it was provoked:** `$env:GEMINI_MODEL = "modelo-inexistente"` before starting the
+server. The model name is Portuguese for "non-existent model". The command and the log
+lines below are unaltered from the run on 26 October 2026, except for the marked omissions.
 
 **Request:**
 
@@ -36,7 +37,7 @@ Traceback (most recent call last):
   File "...\app\llm_client.py", line 56, in generate_handover_package
     response = client.models.generate_content(
 [... SDK frames omitted ...]
-google.genai.errors.ClientError: 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/model-that-does-not-exist is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.', 'status': 'NOT_FOUND'}}
+google.genai.errors.ClientError: 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/modelo-inexistente is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.', 'status': 'NOT_FOUND'}}
 
 The above exception was the direct cause of the following exception:
 

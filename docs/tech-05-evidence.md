@@ -76,8 +76,8 @@ With `KNOWN_MISSES` empty the path would have had no proof. Two mutations in pro
 `KNOWN_MISSES`:
 
 ```
-A) case fails + xfail(strict, raises=AssertionError) -> XFAIL,  exit 0
-B) case passes + xfail(strict)                       -> [XPASS(strict)] -> FAILED, exit 1
+A) caso falha + xfail(strict, raises=AssertionError) -> XFAIL,  exit 0
+B) caso passa + xfail(strict)                       -> [XPASS(strict)] -> FAILED, exit 1
 ```
 
 Proof A shows the mechanism working; B shows why it is strict: if the model starts getting it
