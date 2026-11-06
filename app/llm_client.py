@@ -31,7 +31,21 @@ def _resolve_api_key(environ: Mapping[str, str] | None = None) -> str | None:
     return gemini_key or google_key or None
 
 
-_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+DEFAULT_MODEL = "gemini-3.1-flash-lite"
+
+
+def _resolve_model(environ: Mapping[str, str] | None = None) -> str:
+    """Return the model name, falling back to the default.
+
+    Blank counts as unset, the same rule the API key follows: an empty value
+    would otherwise reach the provider as a model name and fail as a
+    configuration error instead of falling back.
+    """
+    source = os.environ if environ is None else environ
+    return (source.get("GEMINI_MODEL") or "").strip() or DEFAULT_MODEL
+
+
+_MODEL = _resolve_model()
 _API_KEY = _resolve_api_key()
 
 _client: genai.Client | None = None

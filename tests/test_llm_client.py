@@ -193,3 +193,21 @@ def test_schema_violation_hides_transcript_content(fake_client):
     message = str(exc_info.value.__cause__)
     assert "CUSTOMER-DATA-MARKER" not in message
     assert "reason" in message
+
+
+def test_resolve_model_returns_the_default_when_the_variable_is_absent():
+    assert llm_client._resolve_model({}) == llm_client.DEFAULT_MODEL
+
+
+def test_resolve_model_treats_blank_as_absent():
+    assert (
+        llm_client._resolve_model({"GEMINI_MODEL": "   "}) == llm_client.DEFAULT_MODEL
+    )
+
+
+def test_resolve_model_treats_an_empty_string_as_absent():
+    assert llm_client._resolve_model({"GEMINI_MODEL": ""}) == llm_client.DEFAULT_MODEL
+
+
+def test_resolve_model_returns_the_declared_value():
+    assert llm_client._resolve_model({"GEMINI_MODEL": "gemini-x"}) == "gemini-x"
