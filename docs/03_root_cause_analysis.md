@@ -1,94 +1,93 @@
 # Root Cause Analysis — AI Handover Intelligence (P1)
 
-**Fase:** 3 — Root Cause Analysis
-**Autor (papel):** Business Analyst / Consultant
-**Método:** Issue Tree (MECE) — ref. Conn & McLean, *Bulletproof Problem Solving*
-**Status:** Rascunho para validação
+**Phase:** 3 — Root Cause Analysis
+**Author (role):** Business Analyst / Consultant
+**Method:** Issue Tree (MECE) — ref. Conn & McLean, *Bulletproof Problem Solving*
+**Status:** Draft for validation
 
-> Nota de limitação: este projeto não possui dados de produção reais para
-> validação estatística das hipóteses abaixo. A avaliação é baseada em
-> relato de especialista de domínio (SME) e raciocínio lógico. Cada hipótese
-> é marcada como **Hipótese avaliada**, não como **Medido**. Numa consultoria
-> real com acesso a dados de produção, esta fase incluiria validação
-> quantitativa (ex: análise de logs, taxa de correlação).
+> Limitation note: this project has no real production data for statistical
+> validation of the hypotheses below. The assessment is based on domain expert
+> (SME) accounts and logical reasoning. Each hypothesis is marked as **Assessed
+> hypothesis**, not as **Measured**. In a real consultancy with access to
+> production data, this phase would include quantitative validation (e.g. log
+> analysis, correlation rate).
 
 ---
 
-## 1. Pergunta central do issue tree
+## 1. Central question of the issue tree
 
-> Por que o agente humano não recebe visibilidade sobre o motivo específico
-> da decisão de handoff? (Achado 2 do Discovery)
+> Why does the human agent not receive visibility of the specific reason for the
+> handover decision? (Discovery Finding 2)
 
-## 2. Hipóteses (MECE)
+## 2. Hypotheses (MECE)
 
-| # | Hipótese | Categoria (Fishbone) |
+| # | Hypothesis | Category (Fishbone) |
 |---|---|---|
-| A | A tecnologia nunca captura o motivo da decisão — ele é perdido na origem (o bot decide, mas não registra "por quê") | Tecnologia |
-| B | A tecnologia captura o motivo, mas não repassa esse dado ao agente no momento do handoff | Processo / Tecnologia |
-| C | O processo organizacional não exige que o motivo seja comunicado ao agente como critério de qualidade do handoff | Processo |
-| D | O motivo é repassado, mas em formato que o agente não consegue ler rapidamente sob pressão de tempo | Pessoas / UX |
+| A | The technology never captures the reason for the decision — it is lost at the source, because the bot decides but does not record why | Technology |
+| B | The technology captures the reason, but does not pass that data on to the agent at the moment of the handover | Process / Technology |
+| C | The organisational process does not require the reason to be communicated to the agent as a handover quality criterion | Process |
+| D | The reason is passed on, but in a format the agent cannot read quickly under time pressure | People / UX |
 
-## 3. Avaliação de cada hipótese
+## 3. Assessment of each hypothesis
 
-### Hipótese A — Motivo nunca é capturado
-**[HIPÓTESE AVALIADA — provavelmente falsa, ou parcialmente falsa]**
-Segundo o relato do SME, o sistema já usa sinais claros para decidir o handoff
-(ex: um comentário específico do cliente, um status de conta, uma lacuna de
-conteúdo). Isso indica que o sinal de decisão **existe internamente** no
-sistema — ele não é aleatório. Portanto, é pouco provável que o motivo
-simplesmente "não exista".
+### Hypothesis A — the reason is never captured
+**[ASSESSED HYPOTHESIS — probably false, or partly false]**
+According to the SME account, the system already uses clear signals to decide the
+handover (e.g. a specific customer comment, an account status, a content gap).
+That indicates the decision signal **exists inside the system** — it is not
+random. It is therefore unlikely that the reason simply does not exist.
 
-### Hipótese B — Motivo existe, mas não é repassado
-**[HIPÓTESE AVALIADA — mais provável, principal candidata a causa raiz]**
-O relato do SME confirma que o agente "nunca sabia o que a IA olhou" — ou
-seja, o sinal existe na decisão do sistema, mas se perde entre a decisão e a
-entrega ao agente. Isso é consistente com um padrão comum em arquiteturas de
-classificação/roteamento: o modelo produz uma decisão binária ou uma
-categoria (ex: "transferir: sim/não", "fila: X"), mas descarta o raciocínio
-intermediário porque **o payload de handoff nunca foi desenhado para carregá-lo.**
+### Hypothesis B — the reason exists, but is not passed on
+**[ASSESSED HYPOTHESIS — most likely, main root cause candidate]**
+The SME account confirms that the agent "never knew what the AI looked at" — that
+is, the signal exists in the system's decision but is lost between the decision
+and the delivery to the agent. This is consistent with a common pattern in
+classification and routing architectures: the model produces a binary decision or
+a category (e.g. "transfer: yes/no", "queue: X") and discards the intermediate
+reasoning, because **the handover payload was never designed to carry it.**
 
-### Hipótese C — Processo não exige comunicação do motivo
-**[HIPÓTESE AVALIADA — verdadeira, mas consequência da B, não causa independente]**
-É razoável que, se a tecnologia nunca foi desenhada para carregar o motivo
-(Hipótese B), o processo organizacional também nunca tenha formalizado essa
-exigência — não havia como exigir algo que o sistema não produz. Trato isso
-como **sintoma decorrente de B**, não como causa raiz separada.
+### Hypothesis C — the process does not require the reason to be communicated
+**[ASSESSED HYPOTHESIS — true, but a consequence of B, not an independent cause]**
+It is reasonable that, if the technology was never designed to carry the reason
+(Hypothesis B), the organisational process also never formalised that requirement
+— there was no way to require something the system does not produce. I treat this
+as a **symptom arising from B**, not as a separate root cause.
 
-### Hipótese D — Motivo é repassado mas ignorado por formato
-**[HIPÓTESE AVALIADA — não suportada pelo relato disponível]**
-Não há evidência, no relato do SME, de que o motivo chegue ao agente em
-qualquer formato (mesmo ruim). O relato indica ausência da informação, não
-presença mal formatada. Esta hipótese fica descartada por falta de evidência
-— não por ser logicamente impossível.
+### Hypothesis D — the reason is passed on but ignored because of its format
+**[ASSESSED HYPOTHESIS — not supported by the available account]**
+There is no evidence, in the SME account, that the reason reaches the agent in any
+format, even a bad one. The account indicates absence of the information, not a
+badly formatted presence. The hypothesis is discarded for lack of evidence — not
+because it is logically impossible.
 
-## 4. Causa raiz identificada
+## 4. Identified root cause
 
-**[HIPÓTESE AVALIADA — causa raiz mais provável, sujeita a validação com dado real numa reprodução em produção]**
+**[ASSESSED HYPOTHESIS — most likely root cause, subject to validation with real data in a production reproduction]**
 
-> A causa raiz é estrutural/arquitetural: **o momento de decisão do bot (por
-> que transferir, para onde, com que prioridade) não produz um artefato de
-> saída estruturado que carregue o raciocínio** — apenas uma ação (transferir)
-> e, no máximo, uma categoria simples. O raciocínio se perde porque nunca foi
-> desenhado para ser um "produto" explícito da decisão.
+> The root cause is structural and architectural: **the bot's decision moment —
+> why transfer, to where, with what priority — does not produce a structured
+> output artefact that carries the reasoning**; it produces only an action
+> (transfer) and, at most, a simple category. The reasoning is lost because it was
+> never designed to be an explicit product of the decision.
 
-Isso reformula o problema de forma acionável: a solução não precisa "adicionar
-IA" no sentido genérico — precisa **transformar a decisão de handoff, que hoje
-é implícita, em um artefato estruturado e explícito.**
+This reframes the problem in an actionable way: the solution does not need to "add
+AI" in the generic sense — it needs to **turn the handover decision, which is
+implicit today, into a structured and explicit artefact.**
 
-## 5. Por que isso não é (só) um problema de pessoas ou de processo
+## 5. Why this is not (only) a people or process problem
 
-**[INTERPRETAÇÃO]** Poderia-se argumentar que "o agente deveria perguntar mais"
-ou "deveria haver um checklist de handoff". Isso trataria o sintoma (Hipótese C),
-não a causa (Hipótese B). Enquanto o sistema não produzir o motivo de forma
-estruturada, nenhum processo ou treinamento de pessoas resolve — não há dado
-pra comunicar.
+**[INTERPRETATION]** One could argue that "the agent should ask more" or that
+"there should be a handover checklist". That would treat the symptom (Hypothesis
+C), not the cause (Hypothesis B). As long as the system does not produce the
+reason in a structured way, no process or people training solves it — there is no
+data to communicate.
 
-Esta é uma distinção importante para o Business Case: **descarta soluções de
-processo/treinamento como resposta principal**, sem ainda comprometer com
-uma solução técnica específica (isso vem na próxima fase, Options).
+This is an important distinction for the Business Case: **it rules out process and
+training solutions as the main answer**, without yet committing to a specific
+technical solution, which comes in the next phase, Options.
 
 ---
 
-**Próxima fase:** Solution Options (04_solution_options.md) — gerar mais de
-uma alternativa de solução (nem todas com IA) para resolver a causa raiz
-identificada, comparar trade-offs, e só então recomendar.
+**Next phase:** Solution architecture (04_adr_001_arquitetura.md) — compare more than
+one solution alternative, not all of them with AI, and record the choice and the
+trade-offs it assumes.

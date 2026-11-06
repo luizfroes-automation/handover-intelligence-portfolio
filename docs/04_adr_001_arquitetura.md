@@ -1,27 +1,27 @@
-# ADR-001 — Arquitetura da solução (AI Handover Intelligence)
+# ADR-001 — Solution architecture (AI Handover Intelligence)
 
-**Status:** Decidido
-**Contexto:** Root Cause Analysis (03) identificou que a decisão de handoff
-precisa virar um **artefato estruturado e explícito**, não uma ação implícita.
+**Status:** Decided
+**Context:** Root Cause Analysis (03) identified that the handoff decision has to
+become a **structured and explicit artefact**, not an implicit action.
 
-## Opções consideradas (rápido, não elicitação completa)
+## Options considered (brief, not a full elicitation)
 
-| Opção | Descrição | Por que não |
+| Option | Description | Why not |
 |---|---|---|
-| A. Regras fixas (if/else) | Classificar handoff por palavras-chave/regras | Não generaliza para linguagem natural variada; não escala pra novos motivos sem reescrever regras |
-| B. Classificador ML tradicional (ex: scikit-learn) | Treinar um modelo supervisionado pequeno | Exigiria dataset rotulado que não existe (sintético não é suficiente pra treinar bem); fora do escopo de tempo do projeto |
-| **C. LLM com structured output** | Usar um LLM para ler a transcrição e gerar JSON validado contra schema | **Escolhida** — generaliza bem para linguagem natural, não exige dataset de treino, e o "raciocínio" (reason/summary) é subproduto natural de um LLM, resolvendo diretamente o gap de explicabilidade do Root Cause |
+| A. Fixed rules (if/else) | Classify the handoff by keywords or rules | Does not generalise to varied natural language; does not scale to new reasons without rewriting rules |
+| B. Traditional ML classifier (e.g. scikit-learn) | Train a small supervised model | Would need a labelled dataset that does not exist — synthetic data is not enough to train well — and it is outside the project's time scope |
+| **C. LLM with structured output** | Use an LLM to read the transcript and generate JSON validated against a schema | **Chosen** — generalises well to natural language, needs no training dataset, and the reasoning (reason/summary) is a natural by-product of an LLM, which resolves the explainability gap from the Root Cause directly |
 
-## Decisão
+## Decision
 
-Usar LLM com **structured output / function calling** (não parsing de texto livre),
-validado contra schema Pydantic antes de qualquer resposta ser considerada válida.
+Use an LLM with **structured output / function calling**, not free-text parsing,
+validated against a Pydantic schema before any response is considered valid.
 
-## Trade-off assumido (declarar em entrevista)
+## Trade-off assumed (to declare in an interview)
 
-- Custo por chamada de API (vs. regra fixa, que é gratuita)
-- Dependência de um provedor externo (Anthropic/OpenAI)
-- Latência maior que uma regra local
+- Cost per API call, against a fixed rule, which is free
+- Dependency on an external provider (Anthropic/OpenAI)
+- Higher latency than a local rule
 
-Esses trade-offs são aceitáveis para portfólio e são o padrão de mercado atual
-para este tipo de tarefa (classificação semântica sobre linguagem natural).
+These trade-offs are acceptable for a portfolio and are the current market standard
+for this kind of task: semantic classification over natural language.

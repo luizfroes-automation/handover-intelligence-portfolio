@@ -1,81 +1,78 @@
 # Problem Statement — AI Handover Intelligence (P1)
 
-**Fase:** 1 — Discovery / Problem Framing
-**Autor (papel):** Business Analyst / Consultant
-**Status:** Rascunho para validação
-**Data:** 12 September 2026
+**Phase:** 1 — Discovery / Problem Framing
+**Author (role):** Business Analyst / Consultant
+**Status:** Draft for validation
+**Date:** 12 September 2026
 
-> Nota de integridade: este documento descreve um cenário **genérico e sintético**,
-> construído a partir de padrões conhecidos do setor de atendimento ao cliente com
-> IA conversacional. Nenhum dado, métrica ou detalhe operacional real de qualquer
-> empregador é utilizado aqui.
+> Integrity note: this document describes a **generic, synthetic** scenario, built
+> from patterns known in the customer-support industry with conversational AI.
+> No real data, metric or operational detail from any employer is used here.
 
 ---
 
-## 1. Contexto
+## 1. Context
 
-Operações de atendimento ao cliente que utilizam IA conversacional (bots) para
-resolução de primeiro nível frequentemente precisam transferir ("handover") a
-conversa para um agente humano quando o bot não consegue resolver a solicitação
-sozinho.
+Customer-support operations that use conversational AI (bots) for first-level
+resolution often need to transfer ("hand over") the conversation to a human agent
+when the bot cannot resolve the request on its own.
 
-Esse padrão é comum em setores regulados ou de alto volume: telecom, serviços
-financeiros, seguros, apostas/gaming, e-commerce.
+The pattern is common in regulated or high-volume sectors: telecom, financial
+services, insurance, betting/gaming, e-commerce.
 
-## 2. Problema observado
+## 2. Observed problem
 
-Quando o handover bot → humano acontece, observam-se falhas recorrentes no
-processo de transferência em si (não na capacidade do bot de resolver o problema
-original):
+When the bot → human handover happens, recurring failures are observed in the
+transfer process itself (not in the bot's ability to resolve the original problem):
 
-- O agente humano recebe a conversa sem visibilidade clara do que já foi
-  tentado pelo bot.
-- A conversa é roteada para uma fila genérica em vez do time/especialidade
-  correta.
-- Casos sensíveis (ex: risco, segurança, disputas financeiras) não chegam
-  sinalizados com prioridade diferenciada de uma dúvida trivial.
-- O cliente precisa reexplicar o contexto do zero ao agente humano.
+- The human agent receives the conversation with no clear visibility of what the
+  bot has already tried.
+- The conversation is routed to a generic queue instead of the correct
+  team/speciality.
+- Sensitive cases (e.g. risk, safety, financial disputes) do not arrive flagged
+  with a priority different from a trivial question.
+- The customer has to re-explain the context from scratch to the human agent.
 
-## 3. Quem é afetado
+## 3. Who is affected
 
-| Ator | Impacto observado |
+| Actor | Observed impact |
 |---|---|
-| Cliente | Retrabalho (reexplicar o problema), possível frustração |
-| Agente humano | Tempo gasto reconstruindo contexto antes de agir |
-| Operação/negócio | Potencial aumento de tempo médio de resolução e de re-contatos |
+| Customer | Rework (re-explaining the problem), possible frustration |
+| Human agent | Time spent rebuilding context before acting |
+| Operation/business | Potential increase in average resolution time and repeat contacts |
 
-## 4. Por que importa agora
+## 4. Why it matters now
 
-**[HIPÓTESE]** Falhas de handover são um ponto de fricção conhecido em operações
-de atendimento com IA conversacional em escala — a literatura de mercado e
-benchmarks de CX apontam handover mal executado como uma das principais fontes
-de insatisfação em jornadas híbridas bot+humano.
+**[HYPOTHESIS]** Handover failures are a known friction point in support
+operations with conversational AI at scale — market literature and CX benchmarks
+point to badly executed handover as one of the main sources of dissatisfaction in
+hybrid bot+human journeys.
 
-**[NÃO MEDIDO NESTE PROJETO]** Este documento não apresenta números de impacto
-financeiro ou operacional medidos. Qualquer estimativa de impacto será
-apresentada separadamente no Business Brief (Fase 6), com classificação
-explícita de Medido / Hipótese / Estimativa.
+**[NOT MEASURED IN THIS PROJECT]** This document presents no measured financial
+or operational impact figures. Any impact estimate is presented separately in the
+Business Brief (Phase 6), with an explicit Measured / Hypothesis / Estimate
+classification.
 
-## 5. Fora de escopo (explicitamente)
+## 5. Out of scope (explicitly)
 
-Este Problem Statement **não cobre**:
+This Problem Statement **does not cover**:
 
-- Por que o bot não conseguiu resolver a solicitação original (isso é um
-  problema de capability do bot, não de handover)
-- Qualidade do agente humano após o handover
-- Qualquer solução técnica ou tecnológica (deliberadamente omitida nesta fase)
-- Dados, métricas ou processos reais de qualquer empregador específico
+- Why the bot could not resolve the original request (that is a bot capability
+  problem, not a handover problem)
+- The quality of the human agent after the handover
+- Any technical or technological solution (deliberately omitted at this phase)
+- Data, metrics or real processes from any specific employer
 
-## 6. Perguntas em aberto para a fase de Discovery
+## 6. Open questions for the Discovery phase
 
-1. O problema está na **transferência de informação** (contexto perdido) ou no
-   **roteamento** (fila errada) — ou ambos, com pesos diferentes?
-2. Existe hoje algum processo manual/humano tentando mitigar isso, ou é
-   inexistente?
-3. Qual seria o critério de sucesso se o problema fosse resolvido? (Isso vira
-   a base dos requisitos na próxima fase.)
+1. Is the problem in the **transfer of information** (lost context) or in
+   **routing** (wrong queue) — or both, with different weights?
+2. Is there any manual or human process today trying to mitigate this, or does it
+   not exist?
+3. What would the success criterion be if the problem were solved? That becomes
+   the basis of the requirements in the next phase.
 
 ---
 
-**Próxima fase:** Discovery Notes (02_discovery_notes.md) — resposta às
-perguntas da seção 6 e definição de requisitos e constraints.
+**Next phase:** Discovery Notes (02_discovery_notes.md) — answers to the
+questions in section 6, and definition of requirements and constraints.

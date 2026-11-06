@@ -1,93 +1,93 @@
 # Discovery Notes — AI Handover Intelligence (P1)
 
-**Fase:** 2 — Discovery
-**Autor (papel):** Business Analyst / Consultant
-**Método:** Entrevista estruturada (técnica "Mom Test" — perguntas sobre
-comportamento observado, não sobre solução desejada)
-**Status:** Rascunho para validação
+**Phase:** 2 — Discovery
+**Author (role):** Business Analyst / Consultant
+**Method:** Structured interview ("Mom Test" technique — questions about observed
+behaviour, not about the desired solution)
+**Status:** Draft for validation
 
-> Nota de confidencialidade: os achados abaixo foram generalizados a partir de
-> experiência real do autor em operações de atendimento com IA conversacional.
-> Nenhum sistema, produto, vertical de negócio ou dado específico de qualquer
-> empregador é citado. Os padrões descritos são reconhecíveis no setor de CX
-> conversacional como um todo, não exclusivos de um caso.
+> Confidentiality note: the findings below were generalised from the author's real
+> experience in support operations with conversational AI. No system, product,
+> business vertical or specific data from any employer is cited. The patterns
+> described are recognisable across the conversational CX industry as a whole, not
+> exclusive to one case.
 
 ---
 
-## 1. Processo As-Is (resumido)
+## 1. As-Is process (summary)
 
-1. Cliente interage com bot conversacional.
-2. Bot identifica que não pode resolver a solicitação e aciona handoff.
-3. Roteamento automático direciona a conversa para uma fila/time.
-4. Casos sinalizados como sensíveis (ex: risco, segurança, compliance)
-   recebem prioridade de fila.
-5. Agente humano recebe a conversa e assume o atendimento.
-6. **Mecanismo de correção existente:** o agente tem autonomia para
-   realocar a conversa para outra fila, caso perceba erro de roteamento.
+1. The customer interacts with the conversational bot.
+2. The bot identifies that it cannot resolve the request and triggers the handover.
+3. Automatic routing sends the conversation to a queue or team.
+4. Cases flagged as sensitive (e.g. risk, safety, compliance) receive queue
+   priority.
+5. The human agent receives the conversation and takes over.
+6. **Existing correction mechanism:** the agent has the autonomy to reallocate the
+   conversation to another queue if they notice a routing error.
 
-**[FATO — confirmado por SME]** O roteamento incorreto, quando ocorre, não é
-irreversível — existe correção manual disponível no processo atual.
+**[FACT — confirmed by SME]** Incorrect routing, when it happens, is not
+irreversible — a manual correction exists in the current process.
 
-## 2. Achado central (root cause candidate)
+## 2. Central finding (root cause candidate)
 
-**[FATO — confirmado por SME]** O agente humano recebe a conversa transferida
-sem visibilidade sobre **a justificativa da decisão de handoff** — ou seja,
-não fica claro para o agente:
+**[FACT — confirmed by SME]** The human agent receives the transferred
+conversation with no visibility of **the reasoning behind the handover decision**
+— that is, it is not clear to the agent:
 
-- Qual sinal específico (ex: um comentário do cliente, um status de conta,
-  uma lacuna de conteúdo na base de conhecimento) motivou a transferência.
-- O que exatamente o bot já tentou antes de desistir.
+- Which specific signal (e.g. a customer comment, an account status, a content gap
+  in the knowledge base) motivated the transfer.
+- What exactly the bot had already tried before giving up.
 
-Isso reposiciona o problema: **não é apenas "perda de contexto" em termos
-genéricos — é especificamente uma lacuna de explicabilidade da decisão de
-IA no momento da transferência.**
+This reframes the problem: **it is not just "lost context" in generic terms — it
+is specifically an explainability gap in the AI decision at the moment of
+transfer.**
 
-**[INTERPRETAÇÃO]** Essa distinção importa porque muda o requisito técnico:
-o sistema não precisa apenas "resumir a conversa" — precisa **expor o
-raciocínio da decisão** de forma estruturada e auditável.
+**[INTERPRETATION]** The distinction matters because it changes the technical
+requirement: the system does not only need to "summarise the conversation" — it
+needs to **expose the reasoning of the decision** in a structured and auditable
+way.
 
-## 3. Mitigações existentes hoje
+## 3. Mitigations that exist today
 
-**[FATO — confirmado por SME]** O processo já é majoritariamente automatizado
-(roteamento automático, priorização automática de casos sensíveis). Não existe
-triagem manual prévia — a intervenção humana acontece **depois** do handoff,
-como correção pontual (mudança de fila), não como prevenção.
+**[FACT — confirmed by SME]** The process is already mostly automated (automatic
+routing, automatic prioritisation of sensitive cases). There is no prior manual
+triage — human intervention happens **after** the handover, as a one-off
+correction (queue change), not as prevention.
 
-## 4. Critério de sucesso (definido pelo SME)
+## 4. Success criterion (defined by the SME)
 
-Se o problema fosse considerado resolvido, o pacote de handoff entregue ao
-agente deveria conter, simultaneamente:
+If the problem were considered solved, the handover package delivered to the agent
+should contain, at the same time:
 
-1. Resumo do que já foi tentado pelo bot.
-2. Roteamento para a fila/time correto.
-3. Sinalização de prioridade para casos sensíveis.
-4. **Rascunho de resposta sugerido**, para acelerar a primeira ação do agente.
+1. A summary of what the bot had already tried.
+2. Routing to the correct queue or team.
+3. Priority signalling for sensitive cases.
+4. **A suggested response draft**, to speed up the agent's first action.
 
-**[NOVO REQUISITO IDENTIFICADO NO DISCOVERY]** O item 4 (rascunho de resposta)
-não estava no escopo original do brief (Seção 3 do P1) — é um achado de
-Discovery que aumenta o escopo de valor da solução. Decisão sobre incluí-lo
-no CORE ou no ENHANCEMENT será tomada na fase de Solution Design (trade-off
-de tempo vs. valor).
+**[NEW REQUIREMENT IDENTIFIED IN DISCOVERY]** Item 4 (response draft) was not in
+the original scope of the brief (Section 3 of P1) — it is a Discovery finding that
+increases the value scope of the solution. The decision on including it in CORE or
+ENHANCEMENT is taken in the Solution Design phase (time versus value trade-off).
 
-## 5. Requisitos derivados (ainda sem solução definida)
+## 5. Derived requirements (still with no defined solution)
 
-| # | Requisito | Origem |
+| # | Requirement | Origin |
 |---|---|---|
-| R1 | O sistema deve capturar e expor o motivo específico do handoff (não só a categoria) | Achado 2 |
-| R2 | O sistema deve indicar o que já foi tentado antes da transferência | Achado 2 |
-| R3 | O sistema deve sinalizar prioridade para casos sensíveis | Critério de sucesso |
-| R4 | O sistema deve indicar o time/fila sugerido | Critério de sucesso |
-| R5 (candidato a ENHANCEMENT) | O sistema pode sugerir um rascunho de resposta | Critério de sucesso |
-| R6 | A decisão do sistema deve ser auditável (rastreável, não uma caixa-preta) | Achado 2 (explicabilidade) |
+| R1 | The system must capture and expose the specific reason for the handover, not only the category | Finding 2 |
+| R2 | The system must indicate what had already been tried before the transfer | Finding 2 |
+| R3 | The system must signal priority for sensitive cases | Success criterion |
+| R4 | The system must indicate the suggested team or queue | Success criterion |
+| R5 (ENHANCEMENT candidate) | The system may suggest a response draft | Success criterion |
+| R6 | The system's decision must be auditable — traceable, not a black box | Finding 2 (explainability) |
 
-## 6. Fora de escopo (reafirmado)
+## 6. Out of scope (restated)
 
-- Melhorar a capacidade do bot de resolver a solicitação original.
-- Qualquer alteração no processo de correção manual pós-handoff (já funciona).
-- Dado real de qualquer operação específica.
+- Improving the bot's ability to resolve the original request.
+- Any change to the manual post-handover correction process (it works).
+- Real data from any specific operation.
 
 ---
 
-**Próxima fase:** Root Cause Analysis (03_root_cause_analysis.md) — estruturar
-por que a lacuna de explicabilidade (Achado 2) existe, antes de ir para
-Options/Solution Design.
+**Next phase:** Root Cause Analysis (03_root_cause_analysis.md) — structuring why
+the explainability gap (Finding 2) exists, before moving to Options/Solution
+Design.
