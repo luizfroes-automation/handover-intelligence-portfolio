@@ -2,6 +2,7 @@
 
 from unittest import mock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.errors import (
@@ -16,6 +17,7 @@ from app.schema import HandoverPackage, Team, Urgency
 client = TestClient(app)
 
 
+@pytest.mark.live
 def test_post_handover_returns_valid_handover_package():
     transcript = {
         "messages": [

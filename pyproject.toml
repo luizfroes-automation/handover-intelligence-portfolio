@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not live' --strict-markers"
+markers = [
+    "live: calls the real LLM provider and needs GEMINI_API_KEY or GOOGLE_API_KEY",
+]
