@@ -250,7 +250,7 @@ def test_accepts_inputs_at_the_boundary(monkeypatch, label, messages):
 
     response = client.post("/handover", json={"messages": messages})
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     fake_generate.assert_called_once()
 
 
