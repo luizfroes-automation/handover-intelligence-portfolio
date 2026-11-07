@@ -19,7 +19,9 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
       - name: Install development dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Run the deterministic suite
@@ -34,7 +36,9 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
       - name: Install development dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Lint
@@ -49,7 +53,9 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
       - name: Install development dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Check formatting
