@@ -150,7 +150,13 @@ Every pull request targeting `main` and every push to `main` runs `.github/workf
 | `ruff` | `python -m ruff check .` | The lint rules pass |
 | `black` | `python -m black --check .` | The code is already formatted |
 
-The local equivalents are the same three commands: `pytest`, `ruff check .` and `black --check .`. The workflow passes no credentials, reads no `.env`, and requests only `contents: read`, so nothing it runs can reach the provider: the `live` marker stays deselected by `pyproject.toml`, as it is locally.
+The local equivalents are the same three commands: `pytest`, `ruff check .` and `black --check .`.
+
+Three different facts are easy to merge into one overstated guarantee, so the workflow is explicit about each:
+
+- **No credentials are supplied.** The workflow has no `env:` block and references no secret; a clean checkout has no `.env`. `app/llm_client.py` calls `load_dotenv()` at import, which finds no file and therefore resolves no key.
+- **The `live` marker is deselected** by `pyproject.toml`, exactly as in the local default suite, so the eight provider tests do not run.
+- **Network access is not blocked.** `contents: read` limits the GitHub token, not the runner's egress. A test or import that attempted an external call would still attempt it. The protection is selection plus the absence of a key, not a sandbox — an audit run that fails on outbound connections was used to check this ticket, but it is not part of the workflow.
 
 ## Error handling
 
