@@ -98,6 +98,10 @@ def generate_handover_package(transcript: list[dict]) -> HandoverPackage:
         raise ProviderUnavailableError("LLM provider request timed out") from exc
     except httpx.ConnectError as exc:
         raise ProviderUnavailableError("LLM provider is unreachable") from exc
+    except httpx.TransportError as exc:
+        # Covers the remaining transport failures (read/write/close, protocol).
+        # Placed after TimeoutException and ConnectError, which are subclasses.
+        raise ProviderUnavailableError("LLM provider connection failed") from exc
     except errors.ServerError as exc:
         raise ProviderUnavailableError(
             "LLM provider failed to serve the request"
