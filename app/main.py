@@ -3,6 +3,7 @@
 import logging
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.errors import (
@@ -12,6 +13,11 @@ from app.errors import (
     TranscriptTooLargeError,
 )
 from app.llm_client import generate_handover_package
+from app.sanitization import (
+    describe_exception,
+    format_validation_errors,
+    sanitize_validation_errors,
+)
 from app.schema import MAX_TRANSCRIPT_CHARS, HandoverPackage, TranscriptRequest
 
 logger = logging.getLogger(__name__)
@@ -32,11 +38,23 @@ def create_handover(request: TranscriptRequest) -> HandoverPackage:
     return generate_handover_package(transcript)
 
 
+@app.exception_handler(RequestValidationError)
+async def handle_request_validation_error(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Answer a structural violation with the rule, never with the value."""
+    errors = sanitize_validation_errors(exc.errors())
+    logger.warning(
+        "Request rejected by input validation: %s", format_validation_errors(errors)
+    )
+    return JSONResponse(status_code=422, content={"detail": errors})
+
+
 @app.exception_handler(ProviderUnavailableError)
 async def handle_provider_unavailable(
     request: Request, exc: ProviderUnavailableError
 ) -> JSONResponse:
-    logger.warning("LLM provider unavailable", exc_info=exc)
+    logger.warning("LLM provider unavailable: %s", describe_exception(exc))
     return JSONResponse(
         status_code=503,
         content={
@@ -50,7 +68,9 @@ async def handle_provider_unavailable(
 async def handle_invalid_llm_response(
     request: Request, exc: InvalidLLMResponseError
 ) -> JSONResponse:
-    logger.warning("LLM provider returned an invalid response", exc_info=exc)
+    logger.warning(
+        "LLM provider returned an invalid response: %s", describe_exception(exc)
+    )
     return JSONResponse(
         status_code=502,
         content={
@@ -67,7 +87,7 @@ async def handle_invalid_llm_response(
 async def handle_llm_configuration_error(
     request: Request, exc: LLMConfigurationError
 ) -> JSONResponse:
-    logger.error("LLM client is misconfigured", exc_info=exc)
+    logger.error("LLM client is misconfigured: %s", describe_exception(exc))
     return JSONResponse(
         status_code=500,
         content={
@@ -96,5 +116,8 @@ async def handle_transcript_too_large(
 
 @app.exception_handler(Exception)
 async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-    logger.error("Unhandled error while serving the handover request", exc_info=exc)
+    logger.error(
+        "Unhandled error while serving the handover request: %s",
+        describe_exception(exc),
+    )
     return JSONResponse(status_code=500, content={"error": "internal_error"})

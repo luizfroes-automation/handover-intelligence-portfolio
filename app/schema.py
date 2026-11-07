@@ -28,6 +28,11 @@ class Role(str, Enum):
 class Message(BaseModel):
     """A single turn in a bot/customer conversation."""
 
+    # Unknown keys are ignored, never rejected: with ``extra="forbid"`` the key
+    # sent by the client would become part of ``loc`` and would reach the 422
+    # body and the log. ``tests/test_error_sanitization.py`` guards this.
+    model_config = ConfigDict(extra="ignore")
+
     role: Role
     content: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
 
@@ -42,6 +47,8 @@ class Message(BaseModel):
 
 class TranscriptRequest(BaseModel):
     """Request body for the handover endpoint."""
+
+    model_config = ConfigDict(extra="ignore")
 
     messages: list[Message] = Field(min_length=1, max_length=MAX_MESSAGES)
 
@@ -69,7 +76,7 @@ class Team(str, Enum):
 class HandoverPackage(BaseModel):
     """Structured handoff package generated from a bot+customer transcript."""
 
-    model_config = ConfigDict(hide_input_in_errors=True)
+    model_config = ConfigDict(hide_input_in_errors=True, extra="ignore")
 
     handoff_needed: bool = Field(
         description=(
