@@ -11,7 +11,7 @@ from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 
 from app.errors import (
     InvalidLLMResponseError,
@@ -20,11 +20,23 @@ from app.errors import (
 )
 from app.llm_client import generate_handover_package
 from app.main import app
+from app.sanitization import sanitize_validation_errors
 from app.schema import MAX_MESSAGE_CHARS, HandoverPackage, Team, Urgency
 
 MARKER = "synthetic-transcript-marker-enh08"
 
 client = TestClient(app, raise_server_exceptions=False)
+
+
+class _EchoingModel(BaseModel):
+    """A validator that writes the rejected value into its own message."""
+
+    value: str
+
+    @field_validator("value")
+    @classmethod
+    def echo(cls, value: str) -> str:
+        raise ValueError(f"rejected value: {value}")
 
 
 def _post(messages):
@@ -96,6 +108,18 @@ def test_validation_response_drops_the_context_and_the_input():
     [error] = response.json()["detail"]
     assert set(error) == {"type", "loc", "msg"}
     assert error["type"] == "value_error"
+    assert error["msg"] == "Value rejected by a field rule"
+
+
+def test_custom_validator_messages_are_not_forwarded():
+    with pytest.raises(ValidationError) as caught:
+        _EchoingModel(value=MARKER)
+
+    [error] = sanitize_validation_errors(caught.value.errors())
+
+    assert error["type"] == "value_error"
+    assert error["loc"] == ["value"]
+    assert error["msg"] == "Value rejected by a field rule"
 
 
 def test_malformed_json_reports_the_position_but_not_the_body():
