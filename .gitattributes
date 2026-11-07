@@ -1,0 +1,8 @@
+# Line endings for every text file: normalised to LF in the repository, and
+# checked out as LF on every platform. Without this, the checkout depends on the
+# machine's core.autocrlf, and two clones of the same commit differ on disk.
+* text=auto eol=lf
+
+# Compiled Python is build output, never source. If one ever reaches the index,
+# it must not be diffed or converted.
+*.pyc binary
