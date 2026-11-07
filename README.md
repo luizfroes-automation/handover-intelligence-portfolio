@@ -140,6 +140,18 @@ ruff check .
 black --check .
 ```
 
+## Continuous integration
+
+Every pull request targeting `main` and every push to `main` runs `.github/workflows/ci.yml` on a GitHub-hosted runner with Python 3.14. It installs `requirements-dev.txt` and runs three independent jobs:
+
+| Job | Command | What it proves |
+| --- | --- | --- |
+| `pytest` | `python -m pytest` | The deterministic suite passes |
+| `ruff` | `python -m ruff check .` | The lint rules pass |
+| `black` | `python -m black --check .` | The code is already formatted |
+
+The local equivalents are the same three commands: `pytest`, `ruff check .` and `black --check .`. The workflow passes no credentials, reads no `.env`, and requests only `contents: read`, so nothing it runs can reach the provider: the `live` marker stays deselected by `pyproject.toml`, as it is locally.
+
 ## Error handling
 
 Provider failures never reach the client as raw SDK exceptions. The LLM client translates them into domain exceptions, and the API maps each one to a stable response:
