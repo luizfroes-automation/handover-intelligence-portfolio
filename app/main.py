@@ -9,9 +9,10 @@ from app.errors import (
     InvalidLLMResponseError,
     LLMConfigurationError,
     ProviderUnavailableError,
+    TranscriptTooLargeError,
 )
 from app.llm_client import generate_handover_package
-from app.schema import HandoverPackage, TranscriptRequest
+from app.schema import MAX_TRANSCRIPT_CHARS, HandoverPackage, TranscriptRequest
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,9 @@ app = FastAPI()
 @app.post("/handover")
 def create_handover(request: TranscriptRequest) -> HandoverPackage:
     """Generate a handover package from a conversation transcript."""
+    total_chars = sum(len(message.content) for message in request.messages)
+    if total_chars > MAX_TRANSCRIPT_CHARS:
+        raise TranscriptTooLargeError
     transcript = [
         {"role": message.role.value, "content": message.content}
         for message in request.messages
@@ -69,6 +73,23 @@ async def handle_llm_configuration_error(
         content={
             "error": "llm_configuration_error",
             "detail": "The service is misconfigured. Please contact support.",
+        },
+    )
+
+
+@app.exception_handler(TranscriptTooLargeError)
+async def handle_transcript_too_large(
+    request: Request, exc: TranscriptTooLargeError
+) -> JSONResponse:
+    logger.warning("Transcript rejected for exceeding the total size limit")
+    return JSONResponse(
+        status_code=413,
+        content={
+            "error": "transcript_too_large",
+            "detail": (
+                "The transcript is too large. The limit is "
+                f"{MAX_TRANSCRIPT_CHARS} characters in total."
+            ),
         },
     )
 

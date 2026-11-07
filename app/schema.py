@@ -8,7 +8,14 @@ useful". See docs/02_discovery_notes.md and docs/03_root_cause_analysis.md.
 
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# Input contract. The limits are a product decision, not a measured capability of
+# the model: they are generous for a support conversation and small enough that a
+# malformed client is rejected before a call is made.
+MAX_MESSAGE_CHARS = 2000
+MAX_MESSAGES = 100
+MAX_TRANSCRIPT_CHARS = 20000
 
 
 class Role(str, Enum):
@@ -22,13 +29,21 @@ class Message(BaseModel):
     """A single turn in a bot/customer conversation."""
 
     role: Role
-    content: str
+    content: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
+
+    @field_validator("content")
+    @classmethod
+    def reject_blank(cls, value: str) -> str:
+        """Reject whitespace-only content, without rewriting what was sent."""
+        if not value.strip():
+            raise ValueError("content must not be blank")
+        return value
 
 
 class TranscriptRequest(BaseModel):
     """Request body for the handover endpoint."""
 
-    messages: list[Message] = Field(min_length=1)
+    messages: list[Message] = Field(min_length=1, max_length=MAX_MESSAGES)
 
 
 class Urgency(str, Enum):
