@@ -140,6 +140,24 @@ ruff check .
 black --check .
 ```
 
+## Continuous integration
+
+Every pull request targeting `main` and every push to `main` runs `.github/workflows/ci.yml` on a GitHub-hosted runner with Python 3.14. It installs `requirements-dev.txt` and runs three independent jobs:
+
+| Job | Command | What it proves |
+| --- | --- | --- |
+| `pytest` | `python -m pytest` | The deterministic suite passes |
+| `ruff` | `python -m ruff check .` | The lint rules pass |
+| `black` | `python -m black --check .` | The code is already formatted |
+
+The local equivalents are the same three commands: `pytest`, `ruff check .` and `black --check .`.
+
+Three different facts are easy to merge into one overstated guarantee, so the workflow is explicit about each:
+
+- **No credentials are supplied.** The workflow has no `env:` block and references no secret; a clean checkout has no `.env`. `app/llm_client.py` calls `load_dotenv()` at import, which finds no file and therefore resolves no key.
+- **The `live` marker is deselected** by `pyproject.toml`, exactly as in the local default suite, so the eight provider tests do not run.
+- **Network access is not blocked.** `contents: read` limits the GitHub token, not the runner's egress. A test or import that attempted an external call would still attempt it. The protection is selection plus the absence of a key, not a sandbox — an audit run that fails on outbound connections was used to check this ticket, but it is not part of the workflow.
+
 ## Error handling
 
 Provider failures never reach the client as raw SDK exceptions. The LLM client translates them into domain exceptions, and the API maps each one to a stable response:
