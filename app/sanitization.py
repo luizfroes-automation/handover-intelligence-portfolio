@@ -14,6 +14,15 @@ from typing import Any
 
 from pydantic import ValidationError
 
+# Pydantic composes messages for its own constraints from the schema, so those
+# messages describe the rule. A message raised by a field validator is written
+# by code that had the value in hand, so it is not forwarded: a validator that
+# interpolates the value would otherwise put the transcript back into the body
+# and into the log.
+UNTRUSTED_VALIDATOR_MESSAGE = "Value rejected by a field rule"
+
+_UNTRUSTED_ERROR_TYPES = frozenset({"value_error", "assertion_error"})
+
 
 def sanitize_validation_errors(
     errors: Iterable[Mapping[str, Any]],
@@ -23,15 +32,20 @@ def sanitize_validation_errors(
     ``type``, ``loc`` and ``msg`` identify the failure without the data, which
     is what a client needs to fix the request and what an operator needs to
     recognise the rule. ``input``, ``ctx`` and the documentation ``url`` are
-    discarded.
+    discarded, and a message written by a field validator is replaced by a
+    fixed text.
     """
     safe_errors: list[dict[str, Any]] = []
     for error in errors:
+        error_type = str(error.get("type", "value_error"))
+        message = str(error.get("msg", "Invalid value"))
+        if error_type in _UNTRUSTED_ERROR_TYPES:
+            message = UNTRUSTED_VALIDATOR_MESSAGE
         safe_errors.append(
             {
-                "type": str(error.get("type", "value_error")),
+                "type": error_type,
                 "loc": list(error.get("loc", ())),
-                "msg": str(error.get("msg", "Invalid value")),
+                "msg": message,
             }
         )
     return safe_errors
