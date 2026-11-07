@@ -101,3 +101,32 @@ python -m pytest -m live -v
 The per-case breakdown was generated with a loop over `tests.fixtures.transcripts.CASES`
 calling `generate_handover_package` and printing `handoff_needed`, `urgency.value`,
 `confidence` and `reason`. Nothing beyond the model and the answers is recorded.
+
+## The transcript with no customer reply (7 November 2026)
+
+**Fixture:** `customer_never_replied`. Three bot messages, zero from the customer. The
+expected outcome was declared before any run: `handoff_needed=False`, no urgency band.
+
+**Model:** `gemini-3.1-flash-lite` — the code default, and the value in the local `.env`.
+
+| Observation | Result |
+|---|---|
+| live run A | `8 passed` in 7.63s — `customer_never_replied` PASSED |
+| live run B | **inconclusive** — `429 RESOURCE_EXHAUSTED` (free tier, 15 requests/minute) |
+| live run C, after the quota window | `8 passed` in 8.52s — `customer_never_replied` PASSED |
+| three direct calls | `handoff_needed=False`, `urgency=low`, `confidence=0.95`, `reason=customer_inactivity` in all three |
+
+**The case itself:** five observations that reached the model, five times `false`. No
+`xfail`: the case does not miss consistently, and marking it strict would fail on the runs
+where it passes.
+
+**Finding, and it is not about the classification:** the red run B never classified anything.
+The provider answered `429 RESOURCE_EXHAUSTED`, and the client maps every 4xx to
+`LLMConfigurationError`, so a rate limit arrives as *our* misconfiguration and the live test
+has no inconclusive path for it — only `ProviderUnavailableError` is skipped. A quota window
+therefore looks like a product failure in the suite and like a broken deploy in the API. That
+is the planned 4xx subclassification with a concrete case behind it: `429` needs its own translation, retryable and
+upstream, before this suite can be trusted unattended.
+
+**Second-hand note:** `confidence=0.95` on a conversation the customer never joined is the
+calibration finding again, from a new angle: the model is certain about an absence.

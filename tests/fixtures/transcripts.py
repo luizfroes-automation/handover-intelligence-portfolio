@@ -191,4 +191,35 @@ CASES = [
             "automated path; the case is already degraded and a human owns it now."
         ),
     ),
+    TranscriptCase(
+        id="customer_never_replied",
+        messages=[
+            {
+                "role": "bot",
+                "content": "Hello! How can I help you today?",
+            },
+            {
+                "role": "bot",
+                "content": "I can help with orders, payments and account access.",
+            },
+            {
+                "role": "bot",
+                "content": (
+                    "If you are still there, tell me what you need and I will take "
+                    "it from there."
+                ),
+            },
+        ],
+        handoff_needed=False,
+        urgency=(),
+        rationale=(
+            "No message in the transcript comes from the customer: the bot spoke "
+            "into an empty conversation. There is nothing to hand over, because no "
+            "request was made and no work is waiting. This is the structural case, "
+            "decided by the absence of a customer message; it is not the case where "
+            "a customer disengages after being refused, which has customer messages "
+            "and belongs elsewhere. No urgency band is declared: nothing is queued, "
+            "so urgency has no consumer."
+        ),
+    ),
 ]

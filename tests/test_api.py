@@ -13,6 +13,7 @@ from app.errors import (
 from app.llm_client import generate_handover_package
 from app.main import app
 from app.schema import HandoverPackage, Team, Urgency
+from tests.fixtures.transcripts import CASES
 
 client = TestClient(app)
 
@@ -137,3 +138,27 @@ def test_unexpected_error_returns_generic_500(monkeypatch):
     assert response.json() == {"error": "internal_error"}
     assert "detail" not in response.json()
     assert "boom" not in response.text
+
+
+def test_transcript_without_a_customer_message_reaches_the_llm(monkeypatch):
+    case = next(case for case in CASES if case.id == "customer_never_replied")
+    package = HandoverPackage(
+        handoff_needed=False,
+        reason="no_customer_request",
+        summary="The bot opened the conversation and the customer never replied.",
+        urgency=Urgency.LOW,
+        suggested_team=Team.ESCALATIONS,
+        confidence=0.6,
+    )
+    fake_generate = mock.create_autospec(
+        generate_handover_package, return_value=package
+    )
+    monkeypatch.setattr("app.main.generate_handover_package", fake_generate)
+
+    response = client.post("/handover", json={"messages": case.messages})
+
+    assert response.status_code == 200
+    fake_generate.assert_called_once()
+    assert fake_generate.call_args.args[0] == case.messages
+    assert response.json()["handoff_needed"] is False
+    assert response.json()["urgency"] == "low"
