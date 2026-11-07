@@ -122,17 +122,38 @@ def test_transport_errors_raise_provider_unavailable_error(
     assert str(exc_info.value) == "LLM provider connection failed"
 
 
-def test_local_protocol_error_is_captured_as_a_transport_failure(fake_client):
-    """A local/protocol error is a TransportError; it is not called recoverable."""
-    fake_client.models.generate_content.side_effect = httpx.LocalProtocolError(
-        "malformed request"
-    )
+def test_local_protocol_error_is_not_blamed_on_the_provider(fake_client):
+    """A malformed request is our bug, not an unavailable provider."""
+    original = httpx.LocalProtocolError("malformed request")
+    fake_client.models.generate_content.side_effect = original
 
-    with pytest.raises(ProviderUnavailableError) as exc_info:
+    with pytest.raises(httpx.LocalProtocolError) as exc_info:
         llm_client.generate_handover_package(TRANSCRIPT)
 
-    assert isinstance(exc_info.value.__cause__, httpx.LocalProtocolError)
-    assert str(exc_info.value) == "LLM provider connection failed"
+    assert exc_info.value is original
+
+
+CLIENT_SIDE_TRANSPORT_ERRORS = [
+    ("unsupported protocol", httpx.UnsupportedProtocol),
+    ("proxy error", httpx.ProxyError),
+]
+
+
+@pytest.mark.parametrize(
+    "label, error_class",
+    CLIENT_SIDE_TRANSPORT_ERRORS,
+    ids=[label for label, _ in CLIENT_SIDE_TRANSPORT_ERRORS],
+)
+def test_client_side_transport_errors_are_not_blamed_on_the_provider(
+    fake_client, label, error_class
+):
+    original = error_class("client-side transport failure")
+    fake_client.models.generate_content.side_effect = original
+
+    with pytest.raises(error_class) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert exc_info.value is original
 
 
 def test_parsed_none_raises_invalid_llm_response_error(fake_client):

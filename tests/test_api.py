@@ -139,6 +139,26 @@ def test_unexpected_client_error_keeps_the_generic_500(monkeypatch, caplog):
     assert "RuntimeError" in caplog.text
 
 
+def test_client_side_transport_error_keeps_the_generic_500(monkeypatch, caplog):
+    """A malformed request is our failure; it must not answer 503 for the provider."""
+    _client_raising(
+        monkeypatch, httpx.LocalProtocolError(f"malformed request {TRANSCRIPT_MARKER}")
+    )
+    failing_client = TestClient(app, raise_server_exceptions=False)
+
+    with caplog.at_level(logging.ERROR, logger="app.main"):
+        response = failing_client.post(
+            "/handover",
+            json={"messages": [{"role": "bot", "content": TRANSCRIPT_MARKER}]},
+        )
+
+    assert response.status_code == 500
+    assert response.json() == {"error": "internal_error"}
+    assert TRANSCRIPT_MARKER not in response.text
+    assert TRANSCRIPT_MARKER not in caplog.text
+    assert "LocalProtocolError" in caplog.text
+
+
 def test_invalid_llm_response_returns_502(monkeypatch):
     fake_generate = mock.create_autospec(
         generate_handover_package,
