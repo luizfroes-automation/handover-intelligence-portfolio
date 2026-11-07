@@ -21,7 +21,14 @@ from app.errors import (
 from app.llm_client import generate_handover_package
 from app.main import app
 from app.sanitization import sanitize_validation_errors
-from app.schema import MAX_MESSAGE_CHARS, HandoverPackage, Team, Urgency
+from app.schema import (
+    MAX_MESSAGE_CHARS,
+    HandoverPackage,
+    Message,
+    Team,
+    TranscriptRequest,
+    Urgency,
+)
 
 MARKER = "synthetic-transcript-marker-enh08"
 
@@ -138,6 +145,46 @@ def test_malformed_json_reports_the_position_but_not_the_body():
     assert MARKER not in response.text
 
 
+def test_unknown_fields_are_ignored_and_never_become_a_location(monkeypatch, caplog):
+    fake_generate = mock.create_autospec(
+        generate_handover_package, return_value=_package()
+    )
+    monkeypatch.setattr("app.main.generate_handover_package", fake_generate)
+
+    with caplog.at_level(logging.WARNING, logger="app.main"):
+        response = client.post(
+            "/handover",
+            json={
+                "messages": [{"role": "bot", "content": "Hello", MARKER: MARKER}],
+                MARKER: MARKER,
+            },
+        )
+
+    assert response.status_code == 200
+    assert MARKER not in response.text
+    assert MARKER not in caplog.text
+    fake_generate.assert_called_once()
+
+
+def test_no_model_forbids_extra_fields():
+    """Only ``extra="forbid"`` puts the key sent by the client into ``loc``."""
+    for model in (Message, TranscriptRequest, HandoverPackage):
+        assert model.model_config.get("extra") != "forbid"
+
+
+def test_validation_log_limits_the_number_of_rules_reported(caplog):
+    messages = [{"role": "bot", "content": _content_at_the_limit() + "x"}] * 100
+
+    with caplog.at_level(logging.WARNING, logger="app.main"):
+        response = _post(messages)
+
+    assert response.status_code == 422
+    assert len(response.json()["detail"]) == 100
+    assert caplog.text.count("[string_too_long]") == 5
+    assert "+95 more" in caplog.text
+    assert MARKER not in caplog.text
+
+
 def test_validation_is_logged_with_diagnostics_but_without_the_content(caplog):
     with caplog.at_level(logging.WARNING, logger="app.main"):
         response = _post(_over_the_message_limit())
@@ -236,7 +283,9 @@ def test_unexpected_failure_logs_the_type_and_location_but_not_the_content(
     assert "RuntimeError" in caplog.text
 
 
-def test_provider_unavailable_does_not_log_the_chained_cause(monkeypatch, caplog):
+def test_provider_unavailable_logs_the_cause_type_but_not_its_message(
+    monkeypatch, caplog
+):
     fake_generate = mock.create_autospec(generate_handover_package)
     fake_generate.side_effect = _raise_behind_a_cause(
         ProviderUnavailableError("LLM provider failed to serve the request")
