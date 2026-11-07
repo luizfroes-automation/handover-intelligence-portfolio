@@ -150,9 +150,11 @@ Provider failures never reach the client as raw SDK exceptions. The LLM client t
 | Provider returned no structured output, or output that fails validation | 502 | `invalid_llm_response` |
 | Provider rejected the request (4xx, e.g. unknown model or invalid key) | 500 | `llm_configuration_error` |
 | Any other unexpected error | 500 | `internal_error` |
-| Empty transcript | 422 | FastAPI validation error |
+| Empty transcript | 422 | `detail[]` with `type`, `loc`, `msg` |
 
-Error responses have the form `{"error": "...", "detail": "..."}` with a fixed message per error type. The provider's original error is kept in the server log as the exception cause and is never included in the response body. Conversation content is never logged.
+Error responses have the form `{"error": "...", "detail": "..."}` with a fixed message per error type, except a 422, which returns `{"detail": [...]}`: one entry per rejected rule with its `type`, `loc` and `msg` and nothing else. The rejected value is not echoed, so a client that sends a 2,001-character message learns the limit it broke, not a copy of its own text. The provider's original error is kept in the server log as the exception cause and is never included in the response body.
+
+Conversation content never reaches a log record either. The server logs the exception type, the raising frame and — for a validation failure — the failed rule; it does not log exception messages or exception chains with `exc_info`, because a message raised while serving a request can quote that request.
 
 The blame split is the point of the table: 503 and 502 are the provider's side, `llm_configuration_error` is ours — a retired or misspelled model is broken configuration, and retrying does not fix it — and 422 is the client's. No timeout or retry is configured for the provider call yet, so a provider that accepts the connection and then stalls holds the request open.
 
@@ -170,6 +172,7 @@ app/
   llm_client.py   Gemini integration, model and key resolution, error translation
   errors.py       Domain exceptions
   schema.py       Request and response models
+  sanitization.py Diagnostics for rejected requests, without their content
 tests/            Unit tests and fixtures
 docs/             Problem analysis, architecture decisions and verification evidence
 ```
