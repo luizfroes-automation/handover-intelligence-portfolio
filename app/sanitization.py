@@ -18,10 +18,17 @@ from pydantic import ValidationError
 # messages describe the rule. A message raised by a field validator is written
 # by code that had the value in hand, so it is not forwarded: a validator that
 # interpolates the value would otherwise put the transcript back into the body
-# and into the log.
+# and into the log. The guarantee covers the error types below plus the ones
+# Pydantic generates; a custom Pydantic error type is not allowlisted and needs
+# an explicit decision here before its message can be forwarded.
 UNTRUSTED_VALIDATOR_MESSAGE = "Value rejected by a field rule"
 
 _UNTRUSTED_ERROR_TYPES = frozenset({"value_error", "assertion_error"})
+
+# A request can carry up to 100 messages, so a validation failure can repeat the
+# same rule 100 times. The log keeps the shape of the failure, not a transcript
+# of every rejected field.
+MAX_LOGGED_ERRORS = 5
 
 
 def sanitize_validation_errors(
@@ -52,12 +59,17 @@ def sanitize_validation_errors(
 
 
 def format_validation_errors(errors: Iterable[Mapping[str, Any]]) -> str:
-    """Render sanitized errors as a single log line."""
-    return "; ".join(
+    """Render sanitized errors as a single log line, capped at five rules."""
+    safe_errors = sanitize_validation_errors(errors)
+    line = "; ".join(
         f"{'/'.join(str(part) for part in error['loc'])} "
         f"[{error['type']}] {error['msg']}"
-        for error in sanitize_validation_errors(errors)
+        for error in safe_errors[:MAX_LOGGED_ERRORS]
     )
+    hidden = len(safe_errors) - MAX_LOGGED_ERRORS
+    if hidden > 0:
+        line = f"{line}; +{hidden} more"
+    return line
 
 
 def describe_exception(exc: BaseException) -> str:
