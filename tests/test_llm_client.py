@@ -50,6 +50,7 @@ def test_connect_error_raises_provider_unavailable_error(fake_client):
         llm_client.generate_handover_package(TRANSCRIPT)
 
     assert isinstance(exc_info.value.__cause__, httpx.ConnectError)
+    assert str(exc_info.value) == "LLM provider is unreachable"
 
 
 def test_server_error_raises_provider_unavailable_error(fake_client):
@@ -83,6 +84,55 @@ def test_timeout_raises_provider_unavailable_error(fake_client):
         llm_client.generate_handover_package(TRANSCRIPT)
 
     assert isinstance(exc_info.value.__cause__, httpx.TimeoutException)
+    assert str(exc_info.value) == "LLM provider request timed out"
+
+
+def test_remote_protocol_error_raises_provider_unavailable_error(fake_client):
+    original = httpx.RemoteProtocolError("peer closed the connection")
+    fake_client.models.generate_content.side_effect = original
+
+    with pytest.raises(ProviderUnavailableError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert exc_info.value.__cause__ is original
+    assert str(exc_info.value) == "LLM provider connection failed"
+
+
+TRANSPORT_ERRORS = [
+    ("read error", httpx.ReadError),
+    ("write error", httpx.WriteError),
+    ("close error", httpx.CloseError),
+]
+
+
+@pytest.mark.parametrize(
+    "label, error_class",
+    TRANSPORT_ERRORS,
+    ids=[label for label, _ in TRANSPORT_ERRORS],
+)
+def test_transport_errors_raise_provider_unavailable_error(
+    fake_client, label, error_class
+):
+    fake_client.models.generate_content.side_effect = error_class("stream interrupted")
+
+    with pytest.raises(ProviderUnavailableError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert isinstance(exc_info.value.__cause__, error_class)
+    assert str(exc_info.value) == "LLM provider connection failed"
+
+
+def test_local_protocol_error_is_captured_as_a_transport_failure(fake_client):
+    """A local/protocol error is a TransportError; it is not called recoverable."""
+    fake_client.models.generate_content.side_effect = httpx.LocalProtocolError(
+        "malformed request"
+    )
+
+    with pytest.raises(ProviderUnavailableError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert isinstance(exc_info.value.__cause__, httpx.LocalProtocolError)
+    assert str(exc_info.value) == "LLM provider connection failed"
 
 
 def test_parsed_none_raises_invalid_llm_response_error(fake_client):
