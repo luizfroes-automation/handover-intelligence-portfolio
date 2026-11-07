@@ -1,7 +1,9 @@
 """Tests for the handover endpoint error contract."""
 
+import logging
 from unittest import mock
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -82,6 +84,79 @@ def test_provider_unavailable_returns_503(monkeypatch):
         "error": "provider_unavailable",
         "detail": "The LLM provider is temporarily unavailable. Please retry later.",
     }
+
+
+TRANSCRIPT_MARKER = "synthetic-transcript-marker-enh07"
+CREDENTIAL_MARKER = "synthetic-credential-marker-enh07"
+
+
+def _client_raising(monkeypatch, error: Exception) -> None:
+    """Replace only the client acquisition; the real function keeps running."""
+    fake_client = mock.MagicMock(spec=["models"])
+    fake_client.models.generate_content.side_effect = error
+    monkeypatch.setattr("app.llm_client._get_client", lambda: fake_client)
+
+
+def test_transport_error_reaches_the_503_contract_without_leaking(monkeypatch, caplog):
+    error = httpx.RemoteProtocolError(
+        f"peer closed the stream: {TRANSCRIPT_MARKER} key={CREDENTIAL_MARKER}"
+    )
+    _client_raising(monkeypatch, error)
+
+    with caplog.at_level(logging.WARNING, logger="app.main"):
+        response = client.post(
+            "/handover",
+            json={"messages": [{"role": "bot", "content": TRANSCRIPT_MARKER}]},
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "error": "provider_unavailable",
+        "detail": "The LLM provider is temporarily unavailable. Please retry later.",
+    }
+    assert TRANSCRIPT_MARKER not in response.text
+    assert CREDENTIAL_MARKER not in response.text
+    assert TRANSCRIPT_MARKER not in caplog.text
+    assert CREDENTIAL_MARKER not in caplog.text
+    assert "ProviderUnavailableError" in caplog.text
+    assert "RemoteProtocolError" in caplog.text
+
+
+def test_unexpected_client_error_keeps_the_generic_500(monkeypatch, caplog):
+    _client_raising(monkeypatch, RuntimeError(f"boom {TRANSCRIPT_MARKER}"))
+    failing_client = TestClient(app, raise_server_exceptions=False)
+
+    with caplog.at_level(logging.ERROR, logger="app.main"):
+        response = failing_client.post(
+            "/handover",
+            json={"messages": [{"role": "bot", "content": TRANSCRIPT_MARKER}]},
+        )
+
+    assert response.status_code == 500
+    assert response.json() == {"error": "internal_error"}
+    assert TRANSCRIPT_MARKER not in response.text
+    assert TRANSCRIPT_MARKER not in caplog.text
+    assert "RuntimeError" in caplog.text
+
+
+def test_client_side_transport_error_keeps_the_generic_500(monkeypatch, caplog):
+    """A malformed request is our failure; it must not answer 503 for the provider."""
+    _client_raising(
+        monkeypatch, httpx.LocalProtocolError(f"malformed request {TRANSCRIPT_MARKER}")
+    )
+    failing_client = TestClient(app, raise_server_exceptions=False)
+
+    with caplog.at_level(logging.ERROR, logger="app.main"):
+        response = failing_client.post(
+            "/handover",
+            json={"messages": [{"role": "bot", "content": TRANSCRIPT_MARKER}]},
+        )
+
+    assert response.status_code == 500
+    assert response.json() == {"error": "internal_error"}
+    assert TRANSCRIPT_MARKER not in response.text
+    assert TRANSCRIPT_MARKER not in caplog.text
+    assert "LocalProtocolError" in caplog.text
 
 
 def test_invalid_llm_response_returns_502(monkeypatch):
