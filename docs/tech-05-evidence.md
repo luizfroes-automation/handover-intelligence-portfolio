@@ -56,8 +56,7 @@ low–medium) never changed.
 **Calibration finding, not fixed here:** on the case designed to be ambiguous, the model
 answered `handoff_needed=false` **with `confidence` 0.95** — it does not signal uncertainty
 on a case where two readings are defensible. The finding is that `confidence` is
-self-declared and not calibrated, and it goes to the business brief limitations
-(**the business brief**). The idea of a threshold (for example, `confidence` below 0.8 on an
+self-declared and not calibrated, and it goes to the business brief limitations. The idea of a threshold (for example, `confidence` below 0.8 on an
 ambiguous case) is a **hypothesis tested on one case**, not an established contract: one case
 and one model do not fix a calibration rule.
 
