@@ -98,6 +98,10 @@ def generate_handover_package(transcript: list[dict]) -> HandoverPackage:
         raise ProviderUnavailableError("LLM provider request timed out") from exc
     except httpx.ConnectError as exc:
         raise ProviderUnavailableError("LLM provider is unreachable") from exc
+    except httpx.ProxyError as exc:
+        # The proxy is our environment: a refused tunnel is configuration, not
+        # provider unavailability, and retrying does not fix it.
+        raise LLMConfigurationError("LLM provider proxy is misconfigured") from exc
     except (httpx.NetworkError, httpx.RemoteProtocolError) as exc:
         # Upstream transport failures: the connection dropped mid-stream or the
         # peer spoke something unexpected. LocalProtocolError, UnsupportedProtocol
