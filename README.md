@@ -166,7 +166,7 @@ Provider failures never reach the client as raw SDK exceptions. The LLM client t
 | --- | --- | --- |
 | Provider unreachable, timed out or returned 5xx | 503 | `provider_unavailable` |
 | Provider returned no structured output, or output that fails validation | 502 | `invalid_llm_response` |
-| Provider rejected the request (4xx, e.g. unknown model or invalid key) | 500 | `llm_configuration_error` |
+| Provider rejected the request (4xx, e.g. unknown model or invalid key), or our proxy refused the tunnel | 500 | `llm_configuration_error` |
 | Any other unexpected error | 500 | `internal_error` |
 | Empty transcript | 422 | `detail[]` with `type`, `loc`, `msg` |
 
