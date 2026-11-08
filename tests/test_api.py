@@ -88,6 +88,7 @@ def test_provider_unavailable_returns_503(monkeypatch):
 
 TRANSCRIPT_MARKER = "synthetic-transcript-marker-enh07"
 CREDENTIAL_MARKER = "synthetic-credential-marker-enh07"
+PROXY_URL_MARKER = "synthetic-proxy-url-marker-enh11"
 
 
 def _client_raising(monkeypatch, error: Exception) -> None:
@@ -157,6 +158,36 @@ def test_client_side_transport_error_keeps_the_generic_500(monkeypatch, caplog):
     assert TRANSCRIPT_MARKER not in response.text
     assert TRANSCRIPT_MARKER not in caplog.text
     assert "LocalProtocolError" in caplog.text
+
+
+def test_proxy_error_reaches_the_configuration_contract(monkeypatch, caplog):
+    _client_raising(
+        monkeypatch,
+        httpx.ProxyError(
+            f"tunnel refused for {PROXY_URL_MARKER} key={CREDENTIAL_MARKER} "
+            f"transcript={TRANSCRIPT_MARKER}"
+        ),
+    )
+
+    with caplog.at_level(logging.ERROR, logger="app.main"):
+        response = client.post(
+            "/handover",
+            json={"messages": [{"role": "bot", "content": TRANSCRIPT_MARKER}]},
+        )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "error": "llm_configuration_error",
+        "detail": "The service is misconfigured. Please contact support.",
+    }
+    assert PROXY_URL_MARKER not in response.text
+    assert CREDENTIAL_MARKER not in response.text
+    assert TRANSCRIPT_MARKER not in response.text
+    assert PROXY_URL_MARKER not in caplog.text
+    assert CREDENTIAL_MARKER not in caplog.text
+    assert TRANSCRIPT_MARKER not in caplog.text
+    assert "LLMConfigurationError" in caplog.text
+    assert "ProxyError" in caplog.text
 
 
 def test_invalid_llm_response_returns_502(monkeypatch):

@@ -135,7 +135,6 @@ def test_local_protocol_error_is_not_blamed_on_the_provider(fake_client):
 
 CLIENT_SIDE_TRANSPORT_ERRORS = [
     ("unsupported protocol", httpx.UnsupportedProtocol),
-    ("proxy error", httpx.ProxyError),
 ]
 
 
@@ -154,6 +153,17 @@ def test_client_side_transport_errors_are_not_blamed_on_the_provider(
         llm_client.generate_handover_package(TRANSCRIPT)
 
     assert exc_info.value is original
+
+
+def test_proxy_error_raises_llm_configuration_error(fake_client):
+    original = httpx.ProxyError("tunnel refused with status 407")
+    fake_client.models.generate_content.side_effect = original
+
+    with pytest.raises(LLMConfigurationError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert exc_info.value.__cause__ is original
+    assert str(exc_info.value) == "LLM provider proxy is misconfigured"
 
 
 def test_parsed_none_raises_invalid_llm_response_error(fake_client):
