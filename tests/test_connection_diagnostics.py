@@ -37,6 +37,11 @@ PROVIDER_UNAVAILABLE_BODY = {
     "detail": "The LLM provider is temporarily unavailable. Please retry later.",
 }
 
+CONNECTION_FAILURE_BODY = {
+    "error": "provider_unavailable",
+    "detail": "A connection failure prevented the request from completing.",
+}
+
 
 def _client_raising(monkeypatch, error: Exception) -> None:
     fake_client = mock.MagicMock(spec=["models"])
@@ -86,7 +91,7 @@ def test_refusal_chain_logs_the_neutral_identifier_and_keeps_the_503(
         response = _post()
 
     assert response.status_code == 503
-    assert response.json() == PROVIDER_UNAVAILABLE_BODY
+    assert response.json() == CONNECTION_FAILURE_BODY
     assert NEUTRAL_IDENTIFIER in caplog.text
     assert TLS_IDENTIFIER not in caplog.text
 
