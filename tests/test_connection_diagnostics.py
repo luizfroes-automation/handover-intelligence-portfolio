@@ -15,6 +15,11 @@ import httpcore
 import httpx
 from fastapi.testclient import TestClient
 
+from app.diagnostics import (
+    CONNECTION_FAILURE_ORIGIN_UNDETERMINED,
+    connection_failure_identifier,
+)
+from app.errors import ProviderUnavailableError
 from app.main import app
 
 client = TestClient(app)
@@ -144,3 +149,48 @@ def test_proxy_error_keeps_the_configuration_contract(monkeypatch, caplog):
     assert response.json()["error"] == "llm_configuration_error"
     assert NEUTRAL_IDENTIFIER not in caplog.text
     assert TLS_IDENTIFIER not in caplog.text
+
+
+# --- the identifier selector on its own ------------------------------------ #
+
+
+def _translated(cause: BaseException) -> ProviderUnavailableError:
+    error = ProviderUnavailableError("synthetic")
+    error.__cause__ = cause
+    return error
+
+
+def test_the_constant_is_the_logged_token():
+    assert CONNECTION_FAILURE_ORIGIN_UNDETERMINED == NEUTRAL_IDENTIFIER
+
+
+def test_the_selector_returns_the_neutral_token_for_a_refusal_chain():
+    translated = _translated(_refusal_chain())
+    assert connection_failure_identifier(translated) == NEUTRAL_IDENTIFIER
+
+
+def test_the_selector_prefers_the_tls_token():
+    translated = _translated(_tls_chain())
+    assert connection_failure_identifier(translated) == TLS_IDENTIFIER
+
+
+def test_the_selector_returns_none_for_other_branches():
+    for cause in (
+        httpx.ConnectTimeout("synthetic timeout"),
+        httpx.ReadError("synthetic read failure"),
+        httpx.ProxyError("synthetic proxy failure"),
+        RuntimeError("synthetic unexpected error"),
+    ):
+        assert connection_failure_identifier(_translated(cause)) is None
+
+
+def test_the_selector_returns_none_without_a_cause():
+    assert connection_failure_identifier(ProviderUnavailableError("synthetic")) is None
+
+
+def test_the_selector_terminates_on_a_cycle():
+    first = httpx.ConnectError("first")
+    second = httpcore.ConnectError("second")
+    first.__cause__ = second
+    second.__cause__ = first
+    assert connection_failure_identifier(_translated(first)) == NEUTRAL_IDENTIFIER
