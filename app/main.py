@@ -6,6 +6,10 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.diagnostics import (
+    TLS_CERTIFICATE_VERIFICATION_FAILED,
+    certificate_verification_failed,
+)
 from app.errors import (
     InvalidLLMResponseError,
     LLMConfigurationError,
@@ -54,7 +58,16 @@ async def handle_request_validation_error(
 async def handle_provider_unavailable(
     request: Request, exc: ProviderUnavailableError
 ) -> JSONResponse:
-    logger.warning("LLM provider unavailable: %s", describe_exception(exc))
+    # The identifier stays in the log: it describes the observed failure, not
+    # its origin, and the public body keeps its single stable shape.
+    diagnostic = (
+        f" {TLS_CERTIFICATE_VERIFICATION_FAILED}"
+        if certificate_verification_failed(exc)
+        else ""
+    )
+    logger.warning(
+        "LLM provider unavailable: %s%s", describe_exception(exc), diagnostic
+    )
     return JSONResponse(
         status_code=503,
         content={

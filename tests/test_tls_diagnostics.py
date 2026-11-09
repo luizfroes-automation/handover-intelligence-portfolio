@@ -8,6 +8,10 @@ import httpcore
 import httpx
 from fastapi.testclient import TestClient
 
+from app.diagnostics import (
+    TLS_CERTIFICATE_VERIFICATION_FAILED,
+    certificate_verification_failed,
+)
 from app.main import app
 
 client = TestClient(app)
@@ -120,3 +124,46 @@ def test_proxy_error_keeps_the_configuration_contract_without_tls_identifier(
     assert response.json()["error"] == "llm_configuration_error"
     assert TLS_IDENTIFIER not in caplog.text
     assert CREDENTIAL_MARKER not in caplog.text
+
+
+# --- the chain walker on its own ------------------------------------------- #
+
+
+def test_the_logged_token_is_the_stable_constant():
+    assert TLS_CERTIFICATE_VERIFICATION_FAILED == TLS_IDENTIFIER
+
+
+def test_detects_a_bare_verification_error():
+    assert certificate_verification_failed(_tls_verification_error()) is True
+
+
+def test_detects_the_error_through_the_context_link():
+    chain = _transport_chain(_tls_verification_error())
+    assert chain.__cause__.__context__.__class__ is ssl.SSLCertVerificationError
+    assert certificate_verification_failed(chain) is True
+
+
+def test_ignores_a_non_verification_tls_error():
+    assert certificate_verification_failed(ssl.SSLError(1, "handshake")) is False
+
+
+def test_ignores_a_generic_os_error():
+    assert (
+        certificate_verification_failed(ConnectionRefusedError(111, "refused")) is False
+    )
+
+
+def test_terminates_on_a_cycle_that_contains_the_error():
+    first = httpcore.ConnectError("first")
+    second = ssl.SSLCertVerificationError(1, "second")
+    first.__cause__ = second
+    second.__cause__ = first
+    assert certificate_verification_failed(first) is True
+
+
+def test_terminates_on_a_cycle_without_the_error():
+    first = httpx.ConnectError("first")
+    second = httpcore.ConnectError("second")
+    first.__cause__ = second
+    second.__cause__ = first
+    assert certificate_verification_failed(first) is False
