@@ -11,7 +11,9 @@ from fastapi.testclient import TestClient
 from app.diagnostics import (
     TLS_CERTIFICATE_VERIFICATION_FAILED,
     certificate_verification_failed,
+    chain_contains_certificate_verification_error,
 )
+from app.errors import ProviderUnavailableError
 from app.main import app
 
 client = TestClient(app)
@@ -109,7 +111,9 @@ def test_tls_error_without_verification_evidence_has_no_identifier(monkeypatch, 
     assert CERTIFICATE_MARKER not in caplog.text
 
 
-def test_connect_timeout_with_certificate_context_has_no_identifier(monkeypatch, caplog):
+def test_connect_timeout_with_certificate_context_has_no_identifier(
+    monkeypatch, caplog
+):
     """The timeout branch is not the connect branch, even with a TLS error nearby."""
     error = httpx.ConnectTimeout("synthetic connect timeout")
     error.__context__ = _tls_verification_error()
@@ -150,22 +154,24 @@ def test_the_logged_token_is_the_stable_constant():
 
 
 def test_detects_a_bare_verification_error():
-    assert certificate_verification_failed(_tls_verification_error()) is True
+    assert chain_contains_certificate_verification_error(_tls_verification_error())
 
 
 def test_detects_the_error_through_the_context_link():
     chain = _transport_chain(_tls_verification_error())
     assert chain.__cause__.__context__.__class__ is ssl.SSLCertVerificationError
-    assert certificate_verification_failed(chain) is True
+    assert chain_contains_certificate_verification_error(chain) is True
 
 
 def test_ignores_a_non_verification_tls_error():
-    assert certificate_verification_failed(ssl.SSLError(1, "handshake")) is False
+    assert not chain_contains_certificate_verification_error(
+        ssl.SSLError(1, "handshake")
+    )
 
 
 def test_ignores_a_generic_os_error():
-    assert (
-        certificate_verification_failed(ConnectionRefusedError(111, "refused")) is False
+    assert not chain_contains_certificate_verification_error(
+        ConnectionRefusedError(111, "refused")
     )
 
 
@@ -174,7 +180,7 @@ def test_terminates_on_a_cycle_that_contains_the_error():
     second = ssl.SSLCertVerificationError(1, "second")
     first.__cause__ = second
     second.__cause__ = first
-    assert certificate_verification_failed(first) is True
+    assert chain_contains_certificate_verification_error(first) is True
 
 
 def test_terminates_on_a_cycle_without_the_error():
@@ -182,4 +188,40 @@ def test_terminates_on_a_cycle_without_the_error():
     second = httpcore.ConnectError("second")
     first.__cause__ = second
     second.__cause__ = first
-    assert certificate_verification_failed(first) is False
+    assert chain_contains_certificate_verification_error(first) is False
+
+
+# --- the scoped predicate: only the translated ConnectError branch --------- #
+
+
+def _translated(cause: BaseException) -> ProviderUnavailableError:
+    error = ProviderUnavailableError("synthetic")
+    error.__cause__ = cause
+    return error
+
+
+def test_the_scoped_predicate_accepts_the_connect_branch():
+    translated = _translated(_transport_chain(_tls_verification_error()))
+    assert certificate_verification_failed(translated) is True
+
+
+def test_the_scoped_predicate_rejects_a_timeout_branch():
+    cause = httpx.ConnectTimeout("synthetic timeout")
+    cause.__context__ = _tls_verification_error()
+    assert certificate_verification_failed(_translated(cause)) is False
+
+
+def test_the_scoped_predicate_rejects_other_transport_branches():
+    cause = httpx.ReadError("synthetic read failure")
+    cause.__context__ = _tls_verification_error()
+    assert certificate_verification_failed(_translated(cause)) is False
+
+
+def test_the_scoped_predicate_rejects_a_connect_branch_without_the_evidence():
+    translated = _translated(_transport_chain(ConnectionRefusedError(111, "refused")))
+    assert certificate_verification_failed(translated) is False
+
+
+def test_the_scoped_predicate_rejects_a_chain_without_a_cause():
+    error = ProviderUnavailableError("synthetic")
+    assert certificate_verification_failed(error) is False
