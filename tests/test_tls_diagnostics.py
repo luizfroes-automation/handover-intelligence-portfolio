@@ -109,6 +109,22 @@ def test_tls_error_without_verification_evidence_has_no_identifier(monkeypatch, 
     assert CERTIFICATE_MARKER not in caplog.text
 
 
+def test_connect_timeout_with_certificate_context_has_no_identifier(monkeypatch, caplog):
+    """The timeout branch is not the connect branch, even with a TLS error nearby."""
+    error = httpx.ConnectTimeout("synthetic connect timeout")
+    error.__context__ = _tls_verification_error()
+    _client_raising(monkeypatch, error)
+
+    with caplog.at_level(logging.WARNING, logger="app.main"):
+        response = _post()
+
+    assert response.status_code == 503
+    assert response.json()["error"] == "provider_unavailable"
+    assert "ConnectTimeout" in caplog.text
+    assert TLS_IDENTIFIER not in caplog.text
+    assert CERTIFICATE_MARKER not in caplog.text
+
+
 def test_proxy_error_keeps_the_configuration_contract_without_tls_identifier(
     monkeypatch, caplog
 ):
