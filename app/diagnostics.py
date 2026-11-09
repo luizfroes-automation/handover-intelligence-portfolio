@@ -12,6 +12,11 @@ import httpx
 
 TLS_CERTIFICATE_VERIFICATION_FAILED = "tls_certificate_verification_failed"
 
+# The connect branch with no evidence about where the connection failed. The
+# exception does not say whether the refused TCP peer was the destination or
+# the proxy, so the identifier names the uncertainty instead of a culprit.
+CONNECTION_FAILURE_ORIGIN_UNDETERMINED = "connection_failure_origin_undetermined"
+
 
 def certificate_verification_failed(exc: BaseException) -> bool:
     """True only for the translated ``httpx.ConnectError`` branch.
@@ -25,6 +30,22 @@ def certificate_verification_failed(exc: BaseException) -> bool:
     if not isinstance(cause, httpx.ConnectError):
         return False
     return chain_contains_certificate_verification_error(cause)
+
+
+def connection_failure_identifier(exc: BaseException) -> str | None:
+    """The single identifier for a translated ``ConnectError`` branch.
+
+    ``None`` means the branch is not a connect error — a timeout, another
+    transport failure or an SDK server error — and keeps its current diagnostic.
+    A proven certificate verification failure wins over the undetermined-origin
+    token, so the two are mutually exclusive and one log line carries one
+    reading.
+    """
+    if not isinstance(exc.__cause__, httpx.ConnectError):
+        return None
+    if certificate_verification_failed(exc):
+        return TLS_CERTIFICATE_VERIFICATION_FAILED
+    return CONNECTION_FAILURE_ORIGIN_UNDETERMINED
 
 
 def chain_contains_certificate_verification_error(exc: BaseException) -> bool:
