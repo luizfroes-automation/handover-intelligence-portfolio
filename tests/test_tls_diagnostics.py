@@ -83,6 +83,23 @@ def test_certificate_verification_failure_is_logged_and_keeps_the_503_contract(
         assert marker not in response.text
 
 
+def test_the_tls_log_line_does_not_blame_the_provider(monkeypatch, caplog):
+    """A certificate that failed verification says nothing about the provider."""
+    _client_raising(monkeypatch, _transport_chain(_tls_verification_error()))
+
+    with caplog.at_level(logging.WARNING, logger="app.main"):
+        response = _post()
+
+    assert response.status_code == 503
+    tls_records = [
+        record for record in caplog.records if TLS_IDENTIFIER in record.getMessage()
+    ]
+    assert len(tls_records) == 1
+    message = tls_records[0].getMessage()
+    assert message.startswith("LLM certificate verification failed")
+    assert "provider unavailable" not in message.lower()
+
+
 def test_generic_connection_refusal_has_no_tls_identifier(monkeypatch, caplog):
     refusal = ConnectionRefusedError(111, "synthetic refusal")
     _client_raising(monkeypatch, _transport_chain(refusal))
