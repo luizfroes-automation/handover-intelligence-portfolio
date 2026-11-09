@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.diagnostics import (
     CONNECTION_FAILURE_ORIGIN_UNDETERMINED,
+    TLS_CERTIFICATE_VERIFICATION_FAILED,
     connection_failure_identifier,
 )
 from app.errors import (
@@ -63,13 +64,15 @@ async def handle_provider_unavailable(
     # branch also gets neutral wording, so the record does not blame the
     # provider while saying the origin is unknown.
     identifier = connection_failure_identifier(exc)
-    if identifier == CONNECTION_FAILURE_ORIGIN_UNDETERMINED:
+    if identifier == TLS_CERTIFICATE_VERIFICATION_FAILED:
+        logger.warning(
+            "LLM certificate verification failed: %s %s",
+            describe_exception(exc),
+            identifier,
+        )
+    elif identifier == CONNECTION_FAILURE_ORIGIN_UNDETERMINED:
         logger.warning(
             "LLM connection failure: %s %s", describe_exception(exc), identifier
-        )
-    elif identifier is not None:
-        logger.warning(
-            "LLM provider unavailable: %s %s", describe_exception(exc), identifier
         )
     else:
         logger.warning("LLM provider unavailable: %s", describe_exception(exc))
