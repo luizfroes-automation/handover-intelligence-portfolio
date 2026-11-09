@@ -99,8 +99,10 @@ def generate_handover_package(transcript: list[dict]) -> HandoverPackage:
     except httpx.ConnectError as exc:
         raise ProviderUnavailableError("LLM provider is unreachable") from exc
     except httpx.ProxyError as exc:
-        # The proxy is our environment: a refused tunnel is configuration, not
-        # provider unavailability, and retrying does not fix it.
+        # The API currently classifies proxy errors as configuration errors. A
+        # refused tunnel can also result from the proxy being unable to reach the
+        # destination. The exception alone does not establish the underlying
+        # cause or whether a later attempt would succeed.
         raise LLMConfigurationError("LLM provider proxy is misconfigured") from exc
     except (httpx.NetworkError, httpx.RemoteProtocolError) as exc:
         # Upstream transport failures: the connection dropped mid-stream or the
