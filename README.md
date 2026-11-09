@@ -176,7 +176,7 @@ Conversation content never reaches a log record either. The server logs the exce
 
 The guarantee has two documented boundaries. `loc` names schema fields and list indices, which holds because no model forbids extra fields: an unknown key sent by the client is ignored, not reported. A model switched to `extra="forbid"` would put that key into `loc`, so `tests/test_error_sanitization.py` fails if it happens. `msg` is forwarded only for messages Pydantic composes from the schema; a message raised by a field validator is replaced by a fixed text, and a custom Pydantic error type would bypass that rule unless it is deliberately allowlisted in `app/sanitization.py`. No validator in the project raises a custom type today — the only one raises `ValueError`.
 
-The blame split is the point of the table: 503 and 502 are the provider's side, `llm_configuration_error` is ours, and 422 is the client's. The API currently maps `httpx.ProxyError` to `500 llm_configuration_error`. A proxy can refuse a `CONNECT` tunnel because it cannot reach the destination. The exception alone does not establish the underlying cause or whether a later attempt would succeed. No timeout or retry is configured for the provider call yet, so a provider that accepts the connection and then stalls holds the request open.
+The API currently maps `httpx.ProxyError` to `500 llm_configuration_error`. A proxy can refuse a `CONNECT` tunnel because it cannot reach the destination. The exception alone does not establish the underlying cause or whether a later attempt would succeed. No timeout or retry is configured for the provider call yet, so a provider that accepts the connection and then stalls holds the request open.
 
 ## Limitations
 
