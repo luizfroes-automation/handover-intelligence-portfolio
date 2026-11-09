@@ -27,6 +27,17 @@ from app.schema import MAX_TRANSCRIPT_CHARS, HandoverPackage, TranscriptRequest
 
 logger = logging.getLogger(__name__)
 
+# The 503 body is a contract: the status and the error code identify the
+# failure for a client, while the message describes it for a person. The
+# neutral branch gets its own message because an unknown origin cannot claim
+# the provider is unavailable or that a retry would help.
+PROVIDER_UNAVAILABLE_DETAIL = (
+    "The LLM provider is temporarily unavailable. Please retry later."
+)
+CONNECTION_FAILURE_DETAIL = (
+    "A connection failure prevented the request from completing."
+)
+
 app = FastAPI()
 
 
@@ -60,9 +71,9 @@ async def handle_provider_unavailable(
     request: Request, exc: ProviderUnavailableError
 ) -> JSONResponse:
     # The identifier stays in the log: it describes the observed failure, not
-    # its origin, and the public body keeps its single stable shape. The neutral
-    # branch also gets neutral wording, so the record does not blame the
-    # provider while saying the origin is unknown.
+    # its origin. Only the neutral branch changes the public message: a failure
+    # whose origin is unknown cannot tell the caller the provider is unavailable
+    # or that a retry would help. Status and error code stay the same.
     identifier = connection_failure_identifier(exc)
     if identifier == TLS_CERTIFICATE_VERIFICATION_FAILED:
         logger.warning(
@@ -76,12 +87,14 @@ async def handle_provider_unavailable(
         )
     else:
         logger.warning("LLM provider unavailable: %s", describe_exception(exc))
+    detail = (
+        CONNECTION_FAILURE_DETAIL
+        if identifier == CONNECTION_FAILURE_ORIGIN_UNDETERMINED
+        else PROVIDER_UNAVAILABLE_DETAIL
+    )
     return JSONResponse(
         status_code=503,
-        content={
-            "error": "provider_unavailable",
-            "detail": "The LLM provider is temporarily unavailable. Please retry later.",
-        },
+        content={"error": "provider_unavailable", "detail": detail},
     )
 
 
