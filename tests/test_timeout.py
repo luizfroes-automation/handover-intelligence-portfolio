@@ -116,7 +116,7 @@ def loopback_only(monkeypatch):
     for name in list(os.environ):
         if "proxy" in name.lower():
             monkeypatch.delenv(name, raising=False)
-    monkeypatch.setattr("httpx._utils.getproxies", lambda: {})
+    monkeypatch.setattr("httpx._utils.getproxies", dict)
     monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
 
 
