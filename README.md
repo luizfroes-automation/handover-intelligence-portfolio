@@ -176,7 +176,9 @@ Conversation content never reaches a log record either. The server logs the exce
 
 The guarantee has two documented boundaries. `loc` names schema fields and list indices, which holds because no model forbids extra fields: an unknown key sent by the client is ignored, not reported. A model switched to `extra="forbid"` would put that key into `loc`, so `tests/test_error_sanitization.py` fails if it happens. `msg` is forwarded only for messages Pydantic composes from the schema; a message raised by a field validator is replaced by a fixed text, and a custom Pydantic error type would bypass that rule unless it is deliberately allowlisted in `app/sanitization.py`. No validator in the project raises a custom type today — the only one raises `ValueError`.
 
-The API currently maps `httpx.ProxyError` to `500 llm_configuration_error`. A proxy can refuse a `CONNECT` tunnel because it cannot reach the destination. The exception alone does not establish the underlying cause or whether a later attempt would succeed. No timeout or retry is configured for the provider call yet, so a provider that accepts the connection and then stalls holds the request open.
+The API currently maps `httpx.ProxyError` to `500 llm_configuration_error`. A proxy can refuse a `CONNECT` tunnel because it cannot reach the destination. The exception alone does not establish the underlying cause or whether a later attempt would succeed.
+
+The provider call uses a transport timeout of 20,000 ms (`DEFAULT_TIMEOUT_MS` in `app/llm_client.py`). The SDK receives it in milliseconds, converts it to seconds and hands it to HTTPX, where the limit applies to each read: a response that keeps sending data can take longer than 20 s in total. It bounds how long the service waits for progress, not how long the provider works — a call may still complete remotely after the client gives up — and it does not cancel anything on the provider side. The value is a provisional operational hypothesis, not a measured p99. Retry is not configured: a failed call is not repeated. Check it with `python -m pytest tests/test_timeout.py`.
 
 ## Limitations
 

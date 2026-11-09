@@ -33,6 +33,12 @@ def _resolve_api_key(environ: Mapping[str, str] | None = None) -> str | None:
 
 DEFAULT_MODEL = "gemini-3.1-flash-lite"
 
+# Provisional transport timeout, in milliseconds. It bounds how long a read may
+# wait for the next block of data; it is not a deadline for the whole call, and
+# it does not cancel work on the provider side. The value is an operational
+# hypothesis, not a measured p99: the live suite does not record durations yet.
+DEFAULT_TIMEOUT_MS = 20_000
+
 
 def _resolve_model(environ: Mapping[str, str] | None = None) -> str:
     """Return the model name, falling back to the default.
@@ -57,7 +63,10 @@ def _get_client() -> genai.Client:
     if _client is None:
         if not _API_KEY:
             raise LLMConfigurationError("GEMINI_API_KEY or GOOGLE_API_KEY is not set")
-        _client = genai.Client(api_key=_API_KEY)
+        _client = genai.Client(
+            api_key=_API_KEY,
+            http_options={"timeout": DEFAULT_TIMEOUT_MS},
+        )
     return _client
 
 
