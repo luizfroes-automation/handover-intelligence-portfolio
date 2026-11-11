@@ -215,11 +215,17 @@ def test_an_authentication_rejection_keeps_the_configuration_contract(
 
     assert response.status_code == 500
     assert response.json() == CONFIGURATION_BODY
+    # The origin received exactly one request, with the synthetic key.
     assert server.events.count("request_received") == 1
+    assert "api_key_matches_synthetic=true" in server.events
+    # The rejection category is named; the cause is not claimed.
+    assert "LLM provider rejected authentication or permission" in caplog.text
+    assert "misconfigured" not in caplog.text
     assert "provider_auth_rejected" in caplog.text
     assert "provider_permission_denied" not in caplog.text
-    assert PROVIDER_BODY_MARKER not in caplog.text
-    assert PROVIDER_BODY_MARKER not in response.text
+    for marker in (TRANSCRIPT_MARKER, CREDENTIAL_MARKER, PROVIDER_BODY_MARKER):
+        assert marker not in caplog.text
+        assert marker not in response.text
 
 
 def test_a_permission_rejection_keeps_the_configuration_contract(
@@ -237,7 +243,11 @@ def test_a_permission_rejection_keeps_the_configuration_contract(
     assert response.status_code == 500
     assert response.json() == CONFIGURATION_BODY
     assert server.events.count("request_received") == 1
+    assert "api_key_matches_synthetic=true" in server.events
+    assert "LLM provider rejected authentication or permission" in caplog.text
+    assert "misconfigured" not in caplog.text
     assert "provider_permission_denied" in caplog.text
     assert "provider_auth_rejected" not in caplog.text
-    assert PROVIDER_BODY_MARKER not in caplog.text
-    assert PROVIDER_BODY_MARKER not in response.text
+    for marker in (TRANSCRIPT_MARKER, CREDENTIAL_MARKER, PROVIDER_BODY_MARKER):
+        assert marker not in caplog.text
+        assert marker not in response.text
