@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from app.errors import (
     InvalidLLMResponseError,
     LLMConfigurationError,
+    ProviderRateLimitedError,
     ProviderUnavailableError,
 )
 from app.llm_client import generate_handover_package
@@ -207,6 +208,26 @@ def test_invalid_llm_response_returns_502(monkeypatch):
         "detail": (
             "The LLM provider returned an invalid response. "
             "Please retry; if it persists, contact support."
+        ),
+    }
+
+
+def test_rate_limited_provider_returns_503(monkeypatch):
+    fake_generate = mock.create_autospec(
+        generate_handover_package,
+        side_effect=ProviderRateLimitedError("provider refused the request"),
+    )
+    monkeypatch.setattr("app.main.generate_handover_package", fake_generate)
+
+    response = client.post(
+        "/handover", json={"messages": [{"role": "bot", "content": "Hello"}]}
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "error": "provider_rate_limited",
+        "detail": (
+            "The LLM provider is rate-limiting this service or its quota is exhausted."
         ),
     }
 
