@@ -165,12 +165,15 @@ Provider failures never reach the client as raw SDK exceptions. The LLM client t
 | Condition | HTTP | `error` |
 | --- | --- | --- |
 | Provider unreachable, timed out or returned 5xx | 503 | `provider_unavailable` |
+| Provider refused the request for capacity or an exhausted quota (HTTP 429) | 503 | `provider_rate_limited` |
 | Provider returned no structured output, or output that fails validation | 502 | `invalid_llm_response` |
-| Provider rejected the request (4xx, e.g. unknown model or invalid key), or the HTTP client raised a proxy error (e.g. a refused CONNECT tunnel) | 500 | `llm_configuration_error` |
+| Provider rejected the request (4xx other than 429, e.g. unknown model or invalid key), or the HTTP client raised a proxy error (e.g. a refused CONNECT tunnel) | 500 | `llm_configuration_error` |
 | Any other unexpected error | 500 | `internal_error` |
 | Empty transcript | 422 | `detail[]` with `type`, `loc`, `msg` |
 
 Error responses have the form `{"error": "...", "detail": "..."}`. Messages are fixed, but can vary with the condition that produced the response even when the error code is the same. A 422 is the exception: it returns `{"detail": [...]}`, one entry per rejected rule with its `type`, `loc` and `msg` and nothing else. The rejected value is not echoed, so a client that sends a 2,001-character message learns the limit it broke, not a copy of its own text. The provider's original error is kept in the server log as the exception cause and is never included in the response body.
+
+The 503 answer is not one condition. `provider_unavailable` covers a transport failure or a provider 5xx; `provider_rate_limited` covers the provider refusing the request for capacity or an exhausted quota, which arrives as an HTTP 429 from the provider. The status is 503 rather than 429 because the limit belongs to the dependency that serves this service: a public 429 would tell the caller of `/handover` that it sent too many requests, and the evidence does not attribute the consumption to the caller. The response separates the two 503 conditions without claiming that repeating the call would succeed: no retry is configured and the provider's `Retry-After` is not forwarded. The provider's own body is not forwarded either. The log records `provider_throttled_or_quota_exhausted` for this branch, and `provider_auth_rejected` (401) or `provider_permission_denied` (403) for the configuration branch. Whether a rejection came from an expired key, a disabled API or a project restriction is a hypothesis for the investigation, not part of the identifier.
 
 Conversation content never reaches a log record either. The server logs the exception type, the raising frame and — for a validation failure — the failed rule; it does not log exception messages or exception chains with `exc_info`, because a message raised while serving a request can quote that request. A validation line reports at most five rules, followed by how many were omitted. That limit is a number of entries, not a character budget: the next rule is dropped, not shortened, and each forwarded text is either fixed in code or composed by Pydantic from the schema.
 
@@ -178,7 +181,7 @@ The guarantee has two documented boundaries. `loc` names schema fields and list 
 
 The API currently maps `httpx.ProxyError` to `500 llm_configuration_error`. A proxy can refuse a `CONNECT` tunnel because it cannot reach the destination. The exception alone does not establish the underlying cause or whether a later attempt would succeed.
 
-The provider call uses a transport timeout of 20,000 ms (`DEFAULT_TIMEOUT_MS` in `app/llm_client.py`). The SDK receives it in milliseconds, converts it to seconds and hands it to HTTPX, where a single value covers four phases: connecting, reading, writing and waiting for a pool connection. The test demonstrates the read phase: it bounds how long the service waits for the next block of data, so a response that keeps sending data can take longer than 20 s in total. It bounds how long the service waits for progress, not how long the provider works — a call may still complete remotely after the client gives up — and it does not cancel anything on the provider side. The value is a provisional operational hypothesis, not a measured p99. Retry is not configured: a failed call is not repeated. Check it with `python -m pytest tests/test_timeout.py`.
+The provider call uses a transport timeout of 20,000 ms (`DEFAULT_TIMEOUT_MS` in `app/llm_client.py`). The SDK receives it in milliseconds, converts it to seconds and hands it to HTTPX, where a single value covers four phases: connecting, reading, writing and waiting for a pool connection. The test demonstrates the read phase: it bounds how long the service waits for the next block of data, so a response that keeps sending data can take longer than 20 s in total. It bounds how long the service waits for progress, not how long the provider works — a call may still complete remotely after the client gives up — and it does not cancel anything on the provider side. The value is a provisional operational hypothesis, not a measured p99. Retry is not configured: a failed call is not repeated, including a rate-limit refusal from the provider. Check it with `python -m pytest tests/test_timeout.py`.
 
 ## Limitations
 
@@ -194,6 +197,7 @@ app/
   llm_client.py   Gemini integration, model and key resolution, error translation
   errors.py       Domain exceptions
   schema.py       Request and response models
+  diagnostics.py  Internal identifiers derived from an exception chain
   sanitization.py Diagnostics for rejected requests, without their content
 tests/            Unit tests and fixtures
 docs/             Problem analysis, architecture decisions and verification evidence
