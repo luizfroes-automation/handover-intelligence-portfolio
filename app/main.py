@@ -9,11 +9,13 @@ from fastapi.responses import JSONResponse
 from app.diagnostics import (
     CONNECTION_FAILURE_ORIGIN_UNDETERMINED,
     TLS_CERTIFICATE_VERIFICATION_FAILED,
+    client_error_identifier,
     connection_failure_identifier,
 )
 from app.errors import (
     InvalidLLMResponseError,
     LLMConfigurationError,
+    ProviderRateLimitedError,
     ProviderUnavailableError,
     TranscriptTooLargeError,
 )
@@ -36,6 +38,14 @@ PROVIDER_UNAVAILABLE_DETAIL = (
 )
 CONNECTION_FAILURE_DETAIL = (
     "A connection failure prevented the request from completing."
+)
+
+# A 429 from the provider is not our caller being rate-limited: the limit is on
+# the dependency that serves this service. The response therefore reports the
+# lack of capacity, not a client quota, and it makes no promise that a later
+# attempt would succeed.
+RATE_LIMITED_DETAIL = (
+    "The LLM provider is rate-limiting this service or its quota is exhausted."
 )
 
 app = FastAPI()
@@ -98,6 +108,26 @@ async def handle_provider_unavailable(
     )
 
 
+@app.exception_handler(ProviderRateLimitedError)
+async def handle_provider_rate_limited(
+    request: Request, exc: ProviderRateLimitedError
+) -> JSONResponse:
+    # The status stays 503 because the service cannot complete the operation.
+    # The error code separates this refusal from the timeout and transport
+    # branches, and the identifier records what the provider answered. The
+    # provider's timing hint is not forwarded: the service does not promise that
+    # a later attempt would succeed.
+    logger.warning(
+        "LLM provider refused the request for capacity: %s %s",
+        describe_exception(exc),
+        client_error_identifier(exc),
+    )
+    return JSONResponse(
+        status_code=503,
+        content={"error": "provider_rate_limited", "detail": RATE_LIMITED_DETAIL},
+    )
+
+
 @app.exception_handler(InvalidLLMResponseError)
 async def handle_invalid_llm_response(
     request: Request, exc: InvalidLLMResponseError
@@ -121,7 +151,17 @@ async def handle_invalid_llm_response(
 async def handle_llm_configuration_error(
     request: Request, exc: LLMConfigurationError
 ) -> JSONResponse:
-    logger.error("LLM client is misconfigured: %s", describe_exception(exc))
+    # A 4xx from the provider is ours: the body stays the same for every cause,
+    # while the identifier says which rejection was observed — an invalid
+    # credential (401) or a permission denial (403). Whether the cause is an
+    # expired key, a disabled API or a project restriction is a hypothesis for
+    # the investigation, not a claim of this log line.
+    identifier = client_error_identifier(exc)
+    description = describe_exception(exc)
+    if identifier is None:
+        logger.error("LLM client is misconfigured: %s", description)
+    else:
+        logger.error("LLM client is misconfigured: %s %s", description, identifier)
     return JSONResponse(
         status_code=500,
         content={

@@ -17,6 +17,16 @@ class LLMConfigurationError(LLMClientError):
     """The provider rejected the client or generation configuration."""
 
 
+class ProviderRateLimitedError(LLMClientError):
+    """The provider refused the request for capacity or exhausted quota.
+
+    The refusal is on the provider's side, but it is not a transport failure: the
+    request reached the provider and was answered. The status alone does not say
+    whether a short window or a daily quota produced it, and no retry is
+    configured for it.
+    """
+
+
 class TranscriptTooLargeError(Exception):
     """A structurally valid transcript exceeds the total size limit.
 
