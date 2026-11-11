@@ -12,6 +12,15 @@ from app.diagnostics import (
     client_error_identifier,
     connection_failure_identifier,
 )
+from app.error_contract import (
+    CONFIGURATION_ERROR_DETAIL,
+    CONNECTION_FAILURE_DETAIL,
+    HANDOVER_RESPONSES,
+    INVALID_RESPONSE_DETAIL,
+    PROVIDER_UNAVAILABLE_DETAIL,
+    RATE_LIMITED_DETAIL,
+    TRANSCRIPT_TOO_LARGE_DETAIL,
+)
 from app.errors import (
     InvalidLLMResponseError,
     LLMConfigurationError,
@@ -29,29 +38,10 @@ from app.schema import MAX_TRANSCRIPT_CHARS, HandoverPackage, TranscriptRequest
 
 logger = logging.getLogger(__name__)
 
-# The 503 body is a contract: the status and the error code identify the
-# failure for a client, while the message describes it for a person. The
-# neutral branch gets its own message because an unknown origin cannot claim
-# the provider is unavailable or that a retry would help.
-PROVIDER_UNAVAILABLE_DETAIL = (
-    "The LLM provider is temporarily unavailable. Please retry later."
-)
-CONNECTION_FAILURE_DETAIL = (
-    "A connection failure prevented the request from completing."
-)
-
-# A 429 from the provider is not our caller being rate-limited: the limit is on
-# the dependency that serves this service. The response therefore reports the
-# lack of capacity, not a client quota, and it makes no promise that a later
-# attempt would succeed.
-RATE_LIMITED_DETAIL = (
-    "The LLM provider is rate-limiting this service or its quota is exhausted."
-)
-
 app = FastAPI()
 
 
-@app.post("/handover")
+@app.post("/handover", responses=HANDOVER_RESPONSES)
 def create_handover(request: TranscriptRequest) -> HandoverPackage:
     """Generate a handover package from a conversation transcript."""
     total_chars = sum(len(message.content) for message in request.messages)
@@ -139,10 +129,7 @@ async def handle_invalid_llm_response(
         status_code=502,
         content={
             "error": "invalid_llm_response",
-            "detail": (
-                "The LLM provider returned an invalid response. "
-                "Please retry; if it persists, contact support."
-            ),
+            "detail": INVALID_RESPONSE_DETAIL,
         },
     )
 
@@ -171,7 +158,7 @@ async def handle_llm_configuration_error(
         status_code=500,
         content={
             "error": "llm_configuration_error",
-            "detail": "The service is misconfigured. Please contact support.",
+            "detail": CONFIGURATION_ERROR_DETAIL,
         },
     )
 
@@ -185,10 +172,7 @@ async def handle_transcript_too_large(
         status_code=413,
         content={
             "error": "transcript_too_large",
-            "detail": (
-                "The transcript is too large. The limit is "
-                f"{MAX_TRANSCRIPT_CHARS} characters in total."
-            ),
+            "detail": TRANSCRIPT_TOO_LARGE_DETAIL,
         },
     )
 
