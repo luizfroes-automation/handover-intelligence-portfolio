@@ -11,6 +11,7 @@ from app import llm_client
 from app.errors import (
     InvalidLLMResponseError,
     LLMConfigurationError,
+    ProviderRateLimitedError,
     ProviderUnavailableError,
 )
 from app.schema import HandoverPackage, Team, Urgency
@@ -64,15 +65,38 @@ def test_server_error_raises_provider_unavailable_error(fake_client):
     assert isinstance(exc_info.value.__cause__, errors.ServerError)
 
 
-def test_client_error_raises_llm_configuration_error(fake_client):
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 409])
+def test_client_error_raises_llm_configuration_error(fake_client, status):
     fake_client.models.generate_content.side_effect = errors.ClientError(
-        404, {"error": {"message": "model not found"}}
+        status, {"error": {"message": "rejected"}}
     )
 
     with pytest.raises(LLMConfigurationError) as exc_info:
         llm_client.generate_handover_package(TRANSCRIPT)
 
     assert isinstance(exc_info.value.__cause__, errors.ClientError)
+    assert exc_info.value.__cause__.code == status
+
+
+def test_rate_limited_client_error_raises_provider_rate_limited_error(fake_client):
+    fake_client.models.generate_content.side_effect = errors.ClientError(
+        429,
+        {
+            "error": {
+                "code": 429,
+                "message": "quota exceeded for CUSTOMER-DATA-MARKER",
+                "status": "RESOURCE_EXHAUSTED",
+            }
+        },
+    )
+
+    with pytest.raises(ProviderRateLimitedError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert isinstance(exc_info.value.__cause__, errors.ClientError)
+    assert exc_info.value.__cause__.code == 429
+    # The provider message is not forwarded into our own message.
+    assert "CUSTOMER-DATA-MARKER" not in str(exc_info.value)
 
 
 def test_timeout_raises_provider_unavailable_error(fake_client):

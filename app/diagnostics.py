@@ -3,12 +3,15 @@
 An identifier recorded here describes what was observed, not who caused it: a
 certificate that failed verification says nothing about whether the proxy, the
 destination or the local trust store introduced it. These identifiers go to the
-log only; the HTTP contract is not part of this module.
+log only: the HTTP response is still built by the handlers. The module also
+exposes the single provider status the client translates into its own exception,
+so the number has one definition instead of two.
 """
 
 import ssl
 
 import httpx
+from google.genai import errors
 
 TLS_CERTIFICATE_VERIFICATION_FAILED = "tls_certificate_verification_failed"
 
@@ -16,6 +19,28 @@ TLS_CERTIFICATE_VERIFICATION_FAILED = "tls_certificate_verification_failed"
 # exception does not say whether the refused TCP peer was the destination or
 # the proxy, so the identifier names the uncertainty instead of a culprit.
 CONNECTION_FAILURE_ORIGIN_UNDETERMINED = "connection_failure_origin_undetermined"
+
+# Provider client-error identifiers. The SDK raises one class for every 4xx, so
+# the status code is the only structured evidence the exception carries: the
+# message and the body are provider text, may quote the request and may name an
+# internal project, so they are never read here.
+PROVIDER_AUTH_REJECTED = "provider_auth_rejected"
+PROVIDER_PERMISSION_DENIED = "provider_permission_denied"
+
+# A 429 says the provider refused the request for capacity. It does not separate
+# a short rate-limit window from an exhausted quota: that difference lives in the
+# response body, which is not part of the classification.
+PROVIDER_THROTTLED_OR_QUOTA_EXHAUSTED = "provider_throttled_or_quota_exhausted"
+
+# The only client-error status the client translates into its own exception
+# instead of the configuration error.
+RATE_LIMITED_STATUS = 429
+
+_CLIENT_ERROR_IDENTIFIERS = {
+    401: PROVIDER_AUTH_REJECTED,
+    403: PROVIDER_PERMISSION_DENIED,
+    RATE_LIMITED_STATUS: PROVIDER_THROTTLED_OR_QUOTA_EXHAUSTED,
+}
 
 
 def certificate_verification_failed(exc: BaseException) -> bool:
@@ -46,6 +71,21 @@ def connection_failure_identifier(exc: BaseException) -> str | None:
     if certificate_verification_failed(exc):
         return TLS_CERTIFICATE_VERIFICATION_FAILED
     return CONNECTION_FAILURE_ORIGIN_UNDETERMINED
+
+
+def client_error_identifier(exc: BaseException) -> str | None:
+    """The identifier for a translated provider client error.
+
+    ``None`` means the exception is not a provider client error — a transport
+    failure, a server error or one of our own configuration failures — and keeps
+    the current diagnostic. Only the status the SDK carries on the cause is read:
+    the provider's message and body are free text, may quote the request and may
+    name an internal project, so they never take part in a classification.
+    """
+    cause = exc.__cause__
+    if not isinstance(cause, errors.ClientError):
+        return None
+    return _CLIENT_ERROR_IDENTIFIERS.get(cause.code)
 
 
 def chain_contains_certificate_verification_error(exc: BaseException) -> bool:

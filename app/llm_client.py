@@ -9,9 +9,11 @@ from google import genai
 from google.genai import errors, types
 from pydantic import ValidationError
 
+from app.diagnostics import RATE_LIMITED_STATUS
 from app.errors import (
     InvalidLLMResponseError,
     LLMConfigurationError,
+    ProviderRateLimitedError,
     ProviderUnavailableError,
 )
 from app.schema import HandoverPackage
@@ -124,6 +126,13 @@ def generate_handover_package(transcript: list[dict]) -> HandoverPackage:
             "LLM provider failed to serve the request"
         ) from exc
     except errors.ClientError as exc:
+        # The SDK raises one class for every 4xx, so the status is the only
+        # structured evidence: a 429 is a refusal for capacity, not a rejected
+        # client configuration. The body is provider text and is not read.
+        if exc.code == RATE_LIMITED_STATUS:
+            raise ProviderRateLimitedError(
+                "LLM provider refused the request for capacity"
+            ) from exc
         raise LLMConfigurationError(
             "LLM provider rejected the client configuration"
         ) from exc
