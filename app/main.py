@@ -151,17 +151,22 @@ async def handle_invalid_llm_response(
 async def handle_llm_configuration_error(
     request: Request, exc: LLMConfigurationError
 ) -> JSONResponse:
-    # A 4xx from the provider is ours: the body stays the same for every cause,
-    # while the identifier says which rejection was observed — an invalid
-    # credential (401) or a permission denial (403). Whether the cause is an
-    # expired key, a disabled API or a project restriction is a hypothesis for
-    # the investigation, not a claim of this log line.
+    # The body stays the same for every 4xx, because the caller's action does not
+    # change. When the status is one the classifier recognises, the log line
+    # names the category the provider reported instead of calling the client
+    # misconfigured: the status does not establish that our configuration is
+    # wrong, and an expired key, a disabled API or a project restriction remain
+    # hypotheses for the investigation.
     identifier = client_error_identifier(exc)
     description = describe_exception(exc)
     if identifier is None:
         logger.error("LLM client is misconfigured: %s", description)
     else:
-        logger.error("LLM client is misconfigured: %s %s", description, identifier)
+        logger.error(
+            "LLM provider rejected authentication or permission: %s %s",
+            description,
+            identifier,
+        )
     return JSONResponse(
         status_code=500,
         content={
