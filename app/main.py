@@ -108,8 +108,7 @@ async def handle_provider_rate_limited(
     # branches, and the identifier records what the provider answered. The
     # provider's timing hint is not forwarded: the service does not promise that
     # a later attempt would succeed. The body carries the case a person has to
-    # review: the provider refused to evaluate the conversation, so no AI
-    # judgement exists for it.
+    # review: this request received no usable assessment from the service.
     logger.warning(
         "LLM provider refused the request for capacity: %s %s",
         describe_exception(exc),

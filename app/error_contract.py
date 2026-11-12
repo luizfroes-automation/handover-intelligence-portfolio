@@ -48,11 +48,11 @@ class ErrorResponse(BaseModel):
 
 
 class ErrorHandoverPackage(BaseModel):
-    """A reviewable case the model never assessed.
+    """A reviewable case for a request that received no usable assessment.
 
-    Only what the API can state without a judgement: what is missing, why, and
-    the triage rule. The model's own fields do not exist here, so a body of this
-    type cannot be read as an assessment.
+    Only what the service observed: that the assessment is missing, which
+    failure produced it, and the triage rule. The model's own fields do not
+    exist here, so a body of this type cannot be read as an assessment.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -91,10 +91,14 @@ class ProviderRateLimitedResponse(BaseModel):
 class ProviderFailureResponses(
     RootModel[ProviderUnavailableResponse | ProviderRateLimitedResponse]
 ):
-    """A 503 either carries a reviewable case or keeps the retry instruction.
+    """A 503 either carries a reviewable case or does not.
 
-    Each branch pins its own code and refuses unknown properties, so a client
-    can decide from ``error`` whether ``fallback`` exists.
+    The branch is chosen by ``error``: only ``provider_rate_limited`` carries
+    ``fallback``. The two ``provider_unavailable`` bodies hold ``error`` and
+    ``detail`` and nothing else; the standard one asks the caller to retry, and
+    the neutral connection one makes no such request. Each branch pins its code
+    and refuses unknown properties, so a client that validates the body against
+    this model can decide from ``error`` whether ``fallback`` exists.
     """
 
 

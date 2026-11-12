@@ -8,7 +8,7 @@
 
 Every request that reaches the provider can end without an assessment. The client translates the provider failure into a domain error, the API answers with a status that describes it, and the conversation is left with no decision at all.
 
-`HandoverPackage` cannot express that state honestly. All seven fields are products of the assessment: `handoff_needed` is the model's decision, `reason` must not be empty, `summary` describes what the bot attempted, `urgency` and `suggested_team` presume a classification, and `confidence` would be a number written by code that never ran. Reusing the package with `handoff_needed: true` would turn an availability policy into a model decision and attach a fabricated confidence to it.
+`HandoverPackage` cannot express that state honestly. All seven fields are products of the assessment: `handoff_needed` is the model's decision, `reason` must not be empty, `summary` describes what the bot attempted, `urgency` and `suggested_team` presume a classification, and `confidence` would be a number with no assessment behind it. Reusing the package with `handoff_needed: true` would turn an availability policy into a model decision and attach a fabricated confidence to it.
 
 The API also does not hold the conversation: it never stores the transcript and never echoes it in an error body. The caller still has what it sent.
 
@@ -43,7 +43,7 @@ The status stays `503` and the code stays `provider_rate_limited`. The body gain
 }
 ```
 
-- `assessment: "unavailable"` states what is missing: no AI judgement exists for this conversation.
+- `assessment: "unavailable"` states what the service observed: this request received no usable assessment.
 - `error` makes the object self-contained, so it survives being stored on its own.
 - `urgency: "high"` is a **triage rule, not a measurement**: an unassessed case must not queue behind assessed ones until a person decides. Every value in the object is a single literal and the model is closed to extra fields, so neither this service nor a future change can put a different value there by accident.
 
@@ -60,7 +60,7 @@ The generated document changes more than the body. The `503` stops being one mod
 - the `provider_rate_limited` branch **requires** `fallback`;
 - the `provider_unavailable` branch **rejects** it, in both documented bodies, because the branch refuses unknown properties.
 
-A client generated from the new document therefore validates both directions: a rate-limit body without `fallback` is invalid, and a `provider_unavailable` body carrying `fallback` is invalid. The schema is stricter, not looser; the body is additive.
+A client generated from the new document therefore validates both directions: a rate-limit body without `fallback` is invalid, and a `provider_unavailable` body carrying `fallback` is invalid. Both statements are constraints of the **document**, not of the handler: they hold for a client that validates the response against the schema — which is what a generated client usually does, and what the contract tests do — and they do not apply to a client that only reads keys without validating. For that client the change is limited to the added key. The schema is stricter, not looser; the body is additive.
 
 **Consumers checked:** there is no first-party client in either repository. The readers of the contract are the test suite, which pins the exact bodies, and the OpenAPI document itself. No integration outside these repositories is known, so the compatibility claim is limited to what was checked: additive in the JSON body, stricter in the schema, and no known consumer that requires the previous exact shape.
 
@@ -71,7 +71,7 @@ A client generated from the new document therefore validates both directions: a 
 | Reuse `HandoverPackage` with `handoff_needed: true` and a fixed summary | It fabricates a decision and a confidence, and it hides where the package came from — the failure the type exists to prevent |
 | Answer `200` or `202` with the fallback package | It hides the provider failure from monitoring, rewrites a contract that was just documented, and `202` would claim the case was accepted and queued — it was not |
 | A separate endpoint or a request flag | It moves the decision to every caller and multiplies the API surface for a payload the caller can already store; the failure itself is not optional, so the answer should not be either |
-| Offer the fallback for every provider failure | It would create human work for transient failures and duplicate a case that a retry later resolves; the classification that says "the provider refused to evaluate" exists only for the capacity refusal today |
+| Offer the fallback for every provider failure | It would create human work for transient failures and duplicate a case that a retry later resolves; the classification that establishes a refusal exists only for the capacity refusal today |
 
 ## Trade-offs
 
@@ -84,4 +84,4 @@ A client generated from the new document therefore validates both directions: a 
 - It does not claim the provider's quota is exhausted rather than a short window. The status does not distinguish them, the body would, and the body is not read.
 - It does not claim that a retry would fail or succeed. No retry is configured, and nothing here authorises one.
 - It does not cover the safety filter. A refusal is a condition of its own and needs its own decision.
-- It does not make the case assessed. The payload contains no AI judgement, and the high urgency is policy, not a prediction.
+- It does not make the case assessed. The payload contains no assessment, and the high urgency is policy, not a prediction.
