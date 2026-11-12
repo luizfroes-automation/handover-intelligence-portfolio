@@ -146,7 +146,7 @@ def test_connect_timeout_with_certificate_context_has_no_identifier(
     assert CERTIFICATE_MARKER not in caplog.text
 
 
-def test_proxy_error_keeps_the_configuration_contract_without_tls_identifier(
+def test_proxy_error_keeps_the_proxy_contract_without_tls_identifier(
     monkeypatch, caplog
 ):
     _client_raising(
@@ -158,7 +158,7 @@ def test_proxy_error_keeps_the_configuration_contract_without_tls_identifier(
         response = _post()
 
     assert response.status_code == 500
-    assert response.json()["error"] == "llm_configuration_error"
+    assert response.json()["error"] == "proxy_error"
     assert TLS_IDENTIFIER not in caplog.text
     assert CREDENTIAL_MARKER not in caplog.text
 

@@ -144,14 +144,14 @@ def test_a_timeout_branch_carries_neither_identifier(monkeypatch, caplog):
     assert "provider unavailable" in caplog.text.lower()
 
 
-def test_proxy_error_keeps_the_configuration_contract(monkeypatch, caplog):
+def test_proxy_error_keeps_the_proxy_contract(monkeypatch, caplog):
     _client_raising(monkeypatch, httpx.ProxyError(f"tunnel refused {URL_MARKER}"))
 
     with caplog.at_level(logging.ERROR, logger="app.main"):
         response = _post()
 
     assert response.status_code == 500
-    assert response.json()["error"] == "llm_configuration_error"
+    assert response.json()["error"] == "proxy_error"
     assert NEUTRAL_IDENTIFIER not in caplog.text
     assert TLS_IDENTIFIER not in caplog.text
 

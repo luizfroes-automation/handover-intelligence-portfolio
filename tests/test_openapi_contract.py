@@ -25,6 +25,7 @@ from app.errors import (
     LLMConfigurationError,
     ProviderRateLimitedError,
     ProviderUnavailableError,
+    ProxyFailureError,
 )
 from app.main import app
 
@@ -119,11 +120,13 @@ def test_the_500_binds_each_branch_to_its_status_code(schema):
 
     assert {_pinned_code(member) for member in members} == {
         "llm_configuration_error",
+        "proxy_error",
         "internal_error",
     }
 
     by_code = {_pinned_code(member): member for member in members}
     assert set(by_code["llm_configuration_error"]["required"]) == {"error", "detail"}
+    assert set(by_code["proxy_error"]["required"]) == {"error", "detail"}
     assert set(by_code["internal_error"]["required"]) == {"error"}
 
     for member in members:
@@ -151,7 +154,11 @@ def test_the_500_schema_references_the_models_that_are_exercised(schema):
         member["$ref"].rsplit("/", 1)[-1]
         for member in _component(schema, _component_name(schema, "500"))["anyOf"]
     ]
-    assert refs == ["ConfigurationErrorResponse", "InternalErrorResponse"]
+    assert refs == [
+        "ConfigurationErrorResponse",
+        "ProxyErrorResponse",
+        "InternalErrorResponse",
+    ]
     assert _component_name(schema, "500") == "ErrorResponses"
 
 
@@ -171,6 +178,15 @@ def test_the_500_model_rejects_the_counterexamples():
     with pytest.raises(ValidationError):
         ErrorResponses.model_validate(
             {"error": "internal_error", "detail": "not allowed"}
+        )
+
+    # The proxy branch requires its detail and refuses anything else.
+    with pytest.raises(ValidationError):
+        ErrorResponses.model_validate({"error": "proxy_error"})
+
+    with pytest.raises(ValidationError):
+        ErrorResponses.model_validate(
+            {"error": "proxy_error", "detail": "synthetic", "status": 502}
         )
 
 
@@ -386,6 +402,15 @@ def test_a_configuration_error_matches_its_example(schema, monkeypatch):
 
     assert response.status_code == 500
     assert response.json() == _examples(schema, "500")["configuration_error"]
+
+
+def test_a_proxy_failure_matches_its_example(schema, monkeypatch):
+    _client_raising(monkeypatch, ProxyFailureError("synthetic"))
+
+    response = _post()
+
+    assert response.status_code == 500
+    assert response.json() == _examples(schema, "500")["proxy_error"]
 
 
 def test_an_internal_error_matches_its_example_without_a_detail(schema, monkeypatch):

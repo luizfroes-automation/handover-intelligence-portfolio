@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from app.diagnostics import (
     CONNECTION_FAILURE_ORIGIN_UNDETERMINED,
+    PROXY_FAILURE_ORIGIN_UNDETERMINED,
     TLS_CERTIFICATE_VERIFICATION_FAILED,
     client_error_identifier,
     connection_failure_identifier,
@@ -23,6 +24,7 @@ from app.error_contract import (
     HANDOVER_RESPONSES,
     INVALID_RESPONSE_DETAIL,
     PROVIDER_UNAVAILABLE_DETAIL,
+    PROXY_ERROR_DETAIL,
     RATE_LIMITED_DETAIL,
     RATE_LIMITED_FALLBACK,
     TRANSCRIPT_TOO_LARGE_DETAIL,
@@ -33,6 +35,7 @@ from app.errors import (
     LLMConfigurationError,
     ProviderRateLimitedError,
     ProviderUnavailableError,
+    ProxyFailureError,
     TranscriptTooLargeError,
 )
 from app.llm_client import generate_handover_package
@@ -224,6 +227,25 @@ async def handle_llm_configuration_error(
             "error": "llm_configuration_error",
             "detail": CONFIGURATION_ERROR_DETAIL,
         },
+    )
+
+
+@app.exception_handler(ProxyFailureError)
+async def handle_proxy_failure(
+    request: Request, exc: ProxyFailureError
+) -> JSONResponse:
+    # The proxy answered and refused, or the path through it failed; the
+    # exception carries neither the status nor the peer it tried to reach. The
+    # response states the observation and leaves the cause open: it is not a
+    # claim that the configuration, the network or the destination is wrong.
+    logger.error(
+        "Proxy request failed: %s %s",
+        describe_exception(exc),
+        PROXY_FAILURE_ORIGIN_UNDETERMINED,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"error": "proxy_error", "detail": PROXY_ERROR_DETAIL},
     )
 
 
