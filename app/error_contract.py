@@ -47,6 +47,57 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
+class ErrorHandoverPackage(BaseModel):
+    """A reviewable case the model never assessed.
+
+    Only what the API can state without a judgement: what is missing, why, and
+    the triage rule. The model's own fields do not exist here, so a body of this
+    type cannot be read as an assessment.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    assessment: Literal["unavailable"]
+    error: Literal["provider_rate_limited"]
+    urgency: Literal["high"]
+
+
+RATE_LIMITED_FALLBACK = ErrorHandoverPackage(
+    assessment="unavailable",
+    error="provider_rate_limited",
+    urgency="high",
+)
+
+
+class ProviderUnavailableResponse(BaseModel):
+    """The 503 raised when the provider did not serve the request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    error: Literal["provider_unavailable"]
+    detail: str
+
+
+class ProviderRateLimitedResponse(BaseModel):
+    """The 503 raised when the provider refused the request for capacity."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    error: Literal["provider_rate_limited"]
+    detail: str
+    fallback: ErrorHandoverPackage
+
+
+class ProviderFailureResponses(
+    RootModel[ProviderUnavailableResponse | ProviderRateLimitedResponse]
+):
+    """A 503 either carries a reviewable case or keeps the retry instruction.
+
+    Each branch pins its own code and refuses unknown properties, so a client
+    can decide from ``error`` whether ``fallback`` exists.
+    """
+
+
 class ConfigurationErrorResponse(BaseModel):
     """The 500 raised when the client or generation configuration is rejected."""
 
@@ -160,11 +211,12 @@ HANDOVER_RESPONSES: dict[int, dict] = {
         },
     },
     503: {
-        "model": ErrorResponse,
+        "model": ProviderFailureResponses,
         "description": (
             "The service cannot complete the operation: the provider failed, a "
             "connection failure had an undetermined origin, or the provider "
-            "refused the request for capacity."
+            "refused the request for capacity. Only the capacity refusal "
+            "carries `fallback`, the case a person has to review."
         ),
         "content": {
             "application/json": {
@@ -187,7 +239,10 @@ HANDOVER_RESPONSES: dict[int, dict] = {
                         "summary": (
                             "The provider refused the request for capacity or quota"
                         ),
-                        "value": _body("provider_rate_limited", RATE_LIMITED_DETAIL),
+                        "value": {
+                            **_body("provider_rate_limited", RATE_LIMITED_DETAIL),
+                            "fallback": RATE_LIMITED_FALLBACK.model_dump(),
+                        },
                     },
                 }
             }
