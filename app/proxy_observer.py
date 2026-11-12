@@ -26,10 +26,12 @@ def _status_from_headers(value: object) -> int | None:
     """
     if not isinstance(value, tuple) or len(value) != 4:
         return None
-    http_version, status, reason_phrase, _headers = value
+    http_version, status, reason_phrase, headers = value
     if not isinstance(http_version, bytes):
         return None
     if not isinstance(reason_phrase, bytes):
+        return None
+    if not isinstance(headers, list):
         return None
     if not isinstance(status, int) or not 100 <= status <= 599:
         return None
@@ -37,11 +39,12 @@ def _status_from_headers(value: object) -> int | None:
 
 
 def observe_proxy_connect(request: httpx.Request) -> None:
-    """Attach a trace recorder that retains only the CONNECT status.
+    """Attach a trace recorder that retains only a refused CONNECT status.
 
     The response-headers event is also emitted for ordinary origin responses.
     The recorder accepts a status only when the matching ``.started`` event
-    identified a ``CONNECT`` request, and clears the previous reading first.
+    identified a ``CONNECT`` request and the response was outside 2xx, and
+    clears the previous reading first.
     """
     state: dict[str, object] = {"status": None, "connect_reading": False}
     request.extensions[_STATUS_EXTENSION] = state
@@ -62,7 +65,9 @@ def observe_proxy_connect(request: httpx.Request) -> None:
         if name == _FAILED_EVENT:
             return
         status = _status_from_headers(info.get("return_value"))
-        if status is not None:
+        # httpcore only accepts 2xx as a successful tunnel; anything else is a
+        # refusal. A successful tunnel leaves no status to report.
+        if status is not None and not 200 <= status <= 299:
             state["status"] = status
 
     request.extensions[_TRACE_EXTENSION] = trace
