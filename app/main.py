@@ -1,10 +1,12 @@
 """FastAPI application exposing the handover endpoint."""
 
 import logging
+from typing import Literal
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from app.diagnostics import (
     CONNECTION_FAILURE_ORIGIN_UNDETERMINED,
@@ -44,6 +46,33 @@ from app.schema import MAX_TRANSCRIPT_CHARS, HandoverPackage, TranscriptRequest
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+
+class HealthResponse(BaseModel):
+    """Liveness answer: the process is serving requests."""
+
+    status: Literal["ok"]
+
+
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    summary="Liveness check",
+    description=(
+        "Answers while this process is serving requests. It does not call the "
+        "LLM provider and needs no credentials, so a monitor can tell a serving "
+        "process from a provider outage."
+    ),
+    responses={
+        200: {
+            "description": "The process is serving requests.",
+            "content": {"application/json": {"example": {"status": "ok"}}},
+        }
+    },
+)
+def health() -> HealthResponse:
+    """Report that the process is serving requests."""
+    return HealthResponse(status="ok")
 
 
 @app.post("/handover", responses=HANDOVER_RESPONSES)
