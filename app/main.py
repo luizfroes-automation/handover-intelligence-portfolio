@@ -19,6 +19,7 @@ from app.error_contract import (
     INVALID_RESPONSE_DETAIL,
     PROVIDER_UNAVAILABLE_DETAIL,
     RATE_LIMITED_DETAIL,
+    RATE_LIMITED_FALLBACK,
     TRANSCRIPT_TOO_LARGE_DETAIL,
 )
 from app.errors import (
@@ -106,7 +107,8 @@ async def handle_provider_rate_limited(
     # The error code separates this refusal from the timeout and transport
     # branches, and the identifier records what the provider answered. The
     # provider's timing hint is not forwarded: the service does not promise that
-    # a later attempt would succeed.
+    # a later attempt would succeed. The body carries the case a person has to
+    # review: this request received no usable assessment from the service.
     logger.warning(
         "LLM provider refused the request for capacity: %s %s",
         describe_exception(exc),
@@ -114,7 +116,11 @@ async def handle_provider_rate_limited(
     )
     return JSONResponse(
         status_code=503,
-        content={"error": "provider_rate_limited", "detail": RATE_LIMITED_DETAIL},
+        content={
+            "error": "provider_rate_limited",
+            "detail": RATE_LIMITED_DETAIL,
+            "fallback": RATE_LIMITED_FALLBACK.model_dump(),
+        },
     )
 
 
