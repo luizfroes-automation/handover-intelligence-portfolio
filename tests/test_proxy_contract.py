@@ -88,6 +88,7 @@ def _use_proxy(monkeypatch, server: Server) -> None:
         if "proxy" in name.lower():
             monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("HTTPS_PROXY", f"http://127.0.0.1:{server.server_address[1]}")
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
     monkeypatch.setattr("app.llm_client.genai.Client", build)
     monkeypatch.setattr("app.llm_client._client", None)
     monkeypatch.setattr("app.llm_client._API_KEY", CREDENTIAL_MARKER)
