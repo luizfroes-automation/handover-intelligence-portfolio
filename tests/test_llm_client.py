@@ -249,13 +249,15 @@ def test_resolve_api_key_prefers_gemini_when_both_are_set():
         {"GEMINI_API_KEY": "gemini-key", "GOOGLE_API_KEY": "google-key"}
     )
 
-    assert resolved == "gemini-key"
+    assert resolved.value == "gemini-key"
+    assert resolved.source == "GEMINI_API_KEY"
 
 
 def test_resolve_api_key_falls_back_to_google():
     resolved = llm_client._resolve_api_key({"GOOGLE_API_KEY": "google-key"})
 
-    assert resolved == "google-key"
+    assert resolved.value == "google-key"
+    assert resolved.source == "GOOGLE_API_KEY"
 
 
 def test_resolve_api_key_treats_empty_gemini_as_absent():
@@ -263,7 +265,8 @@ def test_resolve_api_key_treats_empty_gemini_as_absent():
         {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": "google-key"}
     )
 
-    assert resolved == "google-key"
+    assert resolved.value == "google-key"
+    assert resolved.source == "GOOGLE_API_KEY"
 
 
 def test_resolve_api_key_treats_blank_gemini_as_absent():
@@ -271,21 +274,22 @@ def test_resolve_api_key_treats_blank_gemini_as_absent():
         {"GEMINI_API_KEY": "   ", "GOOGLE_API_KEY": "google-key"}
     )
 
-    assert resolved == "google-key"
+    assert resolved.value == "google-key"
+    assert resolved.source == "GOOGLE_API_KEY"
 
 
 def test_resolve_api_key_returns_none_when_no_key_is_set():
-    assert llm_client._resolve_api_key({}) is None
-    assert (
-        llm_client._resolve_api_key({"GEMINI_API_KEY": "", "GOOGLE_API_KEY": ""})
-        is None
-    )
+    for environ in ({}, {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": ""}):
+        resolved = llm_client._resolve_api_key(environ)
+        assert resolved.value is None
+        assert resolved.source is None
 
 
 def test_resolve_api_key_strips_surrounding_whitespace():
     resolved = llm_client._resolve_api_key({"GEMINI_API_KEY": "  abc  "})
 
-    assert resolved == "abc"
+    assert resolved.value == "abc"
+    assert resolved.source == "GEMINI_API_KEY"
 
 
 def test_schema_violation_hides_transcript_content(fake_client):
