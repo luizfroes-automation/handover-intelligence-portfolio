@@ -78,6 +78,7 @@ Two rules apply to both the key and the model:
 
 - **Key precedence.** When both keys hold a value, `GEMINI_API_KEY` wins. That is the opposite of the SDK's own default, and it is deliberate: the variable named after the provider the code uses is the one that decides.
 - **Blank counts as unset.** An empty or whitespace-only value falls back — to the other key, or to the default model — instead of being sent to the provider as an empty string. This is why a blank variable does not produce a configuration error.
+- **The fallback announces itself.** When the key comes from `GOOGLE_API_KEY`, the client logs one warning at startup: `GEMINI_API_KEY is not set; using GOOGLE_API_KEY`. The message names the variables and nothing else — no value, prefix, length or hash. It is emitted once per process, so it appears again after a restart or a reload, and a reload under `pytest` shows it through the `lastResort` handler.
 
 `.env` is git-ignored. `.env.example` is versioned and carries placeholders only.
 
