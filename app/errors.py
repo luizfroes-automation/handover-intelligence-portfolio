@@ -27,6 +27,21 @@ class ProviderRateLimitedError(LLMClientError):
     """
 
 
+class ContentBlockedError(LLMClientError):
+    """The provider reported a content block, so no usable assessment is available.
+
+    ``stage`` is where the block was reported ("prompt" or "candidate") and
+    ``reason`` is the enum value the provider returned, already restricted to the
+    values this service classifies. The message is fixed: the provider's own text
+    is never carried by this exception.
+    """
+
+    def __init__(self, *, stage: str, reason: str) -> None:
+        super().__init__("LLM provider reported a content block")
+        self.stage = stage
+        self.reason = reason
+
+
 class TranscriptTooLargeError(Exception):
     """A structurally valid transcript exceeds the total size limit.
 

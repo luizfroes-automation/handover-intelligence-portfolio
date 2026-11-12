@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from app.diagnostics import RATE_LIMITED_STATUS
 from app.errors import (
+    ContentBlockedError,
     InvalidLLMResponseError,
     LLMConfigurationError,
     ProviderRateLimitedError,
@@ -91,6 +92,48 @@ def _format_transcript(transcript: list[dict]) -> str:
     return "\n".join(lines)
 
 
+# A content block is a refusal, not an unusable response: the provider answers
+# 200 and reports the refusal in the body. These are the values this service
+# classifies. OTHER, the image reasons, MODEL_ARMOR and JAILBREAK (unavailable
+# in the Gemini API) and unknown values stay unclassified.
+PROMPT_BLOCK_REASONS = frozenset(
+    {
+        types.BlockedReason.SAFETY,
+        types.BlockedReason.BLOCKLIST,
+        types.BlockedReason.PROHIBITED_CONTENT,
+    }
+)
+
+CANDIDATE_BLOCK_REASONS = frozenset(
+    {
+        types.FinishReason.SAFETY,
+        types.FinishReason.BLOCKLIST,
+        types.FinishReason.PROHIBITED_CONTENT,
+        types.FinishReason.SPII,
+        types.FinishReason.RECITATION,
+    }
+)
+
+
+def _content_block(
+    response: types.GenerateContentResponse,
+) -> tuple[str, str] | None:
+    """Return the stage and reason of a content block, or ``None``.
+
+    The prompt feedback is read first, then the first candidate — the one the
+    SDK uses to build ``parsed``. A block reported on another candidate is not
+    read, because the service would never see that candidate's text.
+    """
+    feedback = response.prompt_feedback
+    if feedback is not None and feedback.block_reason in PROMPT_BLOCK_REASONS:
+        return "prompt", feedback.block_reason.value
+
+    candidates = response.candidates or []
+    if candidates and candidates[0].finish_reason in CANDIDATE_BLOCK_REASONS:
+        return "candidate", candidates[0].finish_reason.value
+    return None
+
+
 def generate_handover_package(transcript: list[dict]) -> HandoverPackage:
     """Analyze a transcript and return a validated handover package."""
     formatted = _format_transcript(transcript)
@@ -136,6 +179,15 @@ def generate_handover_package(transcript: list[dict]) -> HandoverPackage:
         raise LLMConfigurationError(
             "LLM provider rejected the client configuration"
         ) from exc
+
+    # A block is reported in the body of a successful response, and the SDK
+    # still builds `parsed` from the candidate's text, so the check has to come
+    # before the package is trusted. A truncated output (MAX_TOKENS) is not a
+    # block and keeps the invalid-response branch.
+    block = _content_block(response)
+    if block is not None:
+        stage, reason = block
+        raise ContentBlockedError(stage=stage, reason=reason)
 
     # A response without structured output has no provider exception to
     # chain: the failure is in the content returned, not in the transport.

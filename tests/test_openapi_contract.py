@@ -14,8 +14,13 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.error_contract import ErrorResponses, ProviderFailureResponses
+from app.error_contract import (
+    ErrorResponses,
+    InvalidResponseBodies,
+    ProviderFailureResponses,
+)
 from app.errors import (
+    ContentBlockedError,
     InvalidLLMResponseError,
     LLMConfigurationError,
     ProviderRateLimitedError,
@@ -211,6 +216,94 @@ def test_the_503_examples_follow_their_branch(schema):
     }
 
 
+def test_the_502_binds_each_branch_to_its_code(schema):
+    members = _union_members(schema, "502")
+    by_code = {_pinned_code(member): member for member in members}
+
+    assert set(by_code) == {"invalid_llm_response", "content_blocked"}
+
+    invalid = by_code["invalid_llm_response"]
+    assert "fallback" not in invalid["properties"]
+    assert invalid["additionalProperties"] is False
+
+    blocked = by_code["content_blocked"]
+    assert "fallback" in blocked["required"]
+    assert set(blocked["properties"]) == {"error", "detail", "fallback"}
+    assert blocked["additionalProperties"] is False
+
+
+def test_the_502_examples_follow_their_branch(schema):
+    examples = _examples(schema, "502")
+
+    assert set(examples) == {"invalid_llm_response", "content_blocked"}
+    assert "fallback" not in examples["invalid_llm_response"]
+    assert examples["content_blocked"]["fallback"] == {
+        "assessment": "unavailable",
+        "error": "content_blocked",
+        "urgency": "high",
+    }
+
+
+def test_the_502_schema_references_the_models_that_are_exercised(schema):
+    refs = [
+        member["$ref"].rsplit("/", 1)[-1]
+        for member in _component(schema, _component_name(schema, "502"))["anyOf"]
+    ]
+    assert refs == ["InvalidLLMResponse", "ContentBlockedResponse"]
+    assert _component_name(schema, "502") == "InvalidResponseBodies"
+
+
+def test_the_502_model_accepts_every_documented_body(schema):
+    for value in _examples(schema, "502").values():
+        validated = InvalidResponseBodies.model_validate(value)
+        assert validated.root.error == value["error"]
+
+
+def test_the_502_model_rejects_the_counterexamples():
+    blocked = {
+        "error": "content_blocked",
+        "detail": "The LLM provider reported a content block.",
+        "fallback": {
+            "assessment": "unavailable",
+            "error": "content_blocked",
+            "urgency": "high",
+        },
+    }
+
+    # A block without the reviewable case.
+    with pytest.raises(ValidationError):
+        InvalidResponseBodies.model_validate(
+            {"error": "content_blocked", "detail": "..."}
+        )
+
+    # A package pinning the capacity refusal is not valid on this branch.
+    with pytest.raises(ValidationError):
+        InvalidResponseBodies.model_validate(
+            {
+                **blocked,
+                "fallback": {
+                    "assessment": "unavailable",
+                    "error": "provider_rate_limited",
+                    "urgency": "high",
+                },
+            }
+        )
+
+    # The invalid-response branch stays without a fallback.
+    with pytest.raises(ValidationError):
+        InvalidResponseBodies.model_validate(
+            {
+                "error": "invalid_llm_response",
+                "detail": "...",
+                "fallback": blocked["fallback"],
+            }
+        )
+
+    # The block branch refuses an unknown property.
+    with pytest.raises(ValidationError):
+        InvalidResponseBodies.model_validate({**blocked, "retry": True})
+
+
 def test_the_503_schema_references_the_models_that_are_exercised(schema):
     refs = [
         member["$ref"].rsplit("/", 1)[-1]
@@ -312,6 +405,17 @@ def test_an_invalid_response_matches_its_example(schema, monkeypatch):
 
     assert response.status_code == 502
     assert response.json() == _examples(schema, "502")["invalid_llm_response"]
+
+
+def test_a_content_block_matches_its_example(schema, monkeypatch):
+    _client_raising(
+        monkeypatch, ContentBlockedError(stage="candidate", reason="SAFETY")
+    )
+
+    response = _post()
+
+    assert response.status_code == 502
+    assert response.json() == _examples(schema, "502")["content_blocked"]
 
 
 def test_a_transcript_too_large_matches_its_example(schema):

@@ -40,8 +40,10 @@ def _package() -> HandoverPackage:
 
 
 def _fake_client(monkeypatch, parsed):
-    response = mock.Mock(spec=["parsed"])
+    response = mock.Mock(spec=["parsed", "prompt_feedback", "candidates"])
     response.parsed = parsed
+    response.prompt_feedback = None
+    response.candidates = None
     fake = mock.MagicMock(spec=["models"])
     fake.models.generate_content.return_value = response
     monkeypatch.setattr(llm_client, "_get_client", lambda: fake)

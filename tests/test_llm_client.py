@@ -190,10 +190,17 @@ def test_proxy_error_raises_llm_configuration_error(fake_client):
     assert str(exc_info.value) == "LLM provider proxy is misconfigured"
 
 
+def _response(parsed):
+    """A response stub carrying only what the client reads."""
+    response = mock.Mock(spec=["parsed", "prompt_feedback", "candidates"])
+    response.parsed = parsed
+    response.prompt_feedback = None
+    response.candidates = None
+    return response
+
+
 def test_parsed_none_raises_invalid_llm_response_error(fake_client):
-    response = mock.Mock(spec=["parsed"])
-    response.parsed = None
-    fake_client.models.generate_content.return_value = response
+    fake_client.models.generate_content.return_value = _response(None)
 
     with pytest.raises(InvalidLLMResponseError) as exc_info:
         llm_client.generate_handover_package(TRANSCRIPT)
@@ -205,9 +212,7 @@ def test_parsed_none_raises_invalid_llm_response_error(fake_client):
 def test_schema_violation_raises_invalid_llm_response_error(fake_client):
     payload = _valid_package().model_dump()
     payload["confidence"] = 1.5
-    response = mock.Mock(spec=["parsed"])
-    response.parsed = payload
-    fake_client.models.generate_content.return_value = response
+    fake_client.models.generate_content.return_value = _response(payload)
 
     with pytest.raises(InvalidLLMResponseError) as exc_info:
         llm_client.generate_handover_package(TRANSCRIPT)
@@ -217,9 +222,7 @@ def test_schema_violation_raises_invalid_llm_response_error(fake_client):
 
 def test_valid_response_returns_handover_package(fake_client):
     package = _valid_package()
-    response = mock.Mock(spec=["parsed"])
-    response.parsed = package
-    fake_client.models.generate_content.return_value = response
+    fake_client.models.generate_content.return_value = _response(package)
 
     result = llm_client.generate_handover_package(TRANSCRIPT)
 
@@ -287,9 +290,7 @@ def test_resolve_api_key_strips_surrounding_whitespace():
 
 def test_schema_violation_hides_transcript_content(fake_client):
     payload = {"summary": "CUSTOMER-DATA-MARKER"}
-    response = mock.Mock(spec=["parsed"])
-    response.parsed = payload
-    fake_client.models.generate_content.return_value = response
+    fake_client.models.generate_content.return_value = _response(payload)
 
     with pytest.raises(InvalidLLMResponseError) as exc_info:
         llm_client.generate_handover_package(TRANSCRIPT)
