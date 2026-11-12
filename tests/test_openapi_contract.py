@@ -12,7 +12,9 @@ from unittest import mock
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
+from app.error_contract import ErrorResponses
 from app.errors import (
     InvalidLLMResponseError,
     LLMConfigurationError,
@@ -94,24 +96,77 @@ def test_the_validation_schema_carries_only_the_sanitized_fields(schema):
     assert "ValidationError" not in schema["components"]["schemas"]
 
 
-def test_the_500_declares_both_shapes_and_never_a_null_detail(schema):
+def _union_members(schema: dict) -> list[dict]:
     union = _component(schema, _component_name(schema, "500"))
-    members = [
+    return [
         _component(schema, member["$ref"].rsplit("/", 1)[-1])
         for member in union["anyOf"]
     ]
 
-    required = {frozenset(member.get("required", ())) for member in members}
-    assert frozenset({"error", "detail"}) in required
-    assert frozenset({"error"}) in required
+
+def _pinned_code(member: dict) -> str:
+    error = member["properties"]["error"]
+    return error["const"] if "const" in error else error["enum"][0]
+
+
+def test_the_500_binds_each_branch_to_its_status_code(schema):
+    members = _union_members(schema)
+
+    assert {_pinned_code(member) for member in members} == {
+        "llm_configuration_error",
+        "internal_error",
+    }
+
+    by_code = {_pinned_code(member): member for member in members}
+    assert set(by_code["llm_configuration_error"]["required"]) == {"error", "detail"}
+    assert set(by_code["internal_error"]["required"]) == {"error"}
 
     for member in members:
-        properties = member["properties"]
-        assert set(properties) <= {"error", "detail"}
-        if "detail" in properties:
-            # A plain string: never `null`, never an optional variant.
-            assert "anyOf" not in properties["detail"]
-            assert properties["detail"].get("type") == "string"
+        # Every declared property is required and nothing else is accepted.
+        assert set(member["properties"]) == set(member["required"])
+        assert member["additionalProperties"] is False
+
+
+def test_the_500_schema_excludes_the_two_counterexamples(schema):
+    """The union must reject a body that a client could misread."""
+    by_code = {_pinned_code(member): member for member in _union_members(schema)}
+
+    # `{"error": "llm_configuration_error"}` misses a required property.
+    assert "detail" in by_code["llm_configuration_error"]["required"]
+
+    # `{"error": "internal_error", "detail": null}` carries a forbidden property.
+    internal = by_code["internal_error"]
+    assert internal["additionalProperties"] is False
+    assert set(internal["properties"]) == {"error"}
+
+
+def test_the_500_schema_references_the_models_that_are_exercised(schema):
+    """The acceptance tests below must test the models the document points at."""
+    refs = [
+        member["$ref"].rsplit("/", 1)[-1]
+        for member in _component(schema, _component_name(schema, "500"))["anyOf"]
+    ]
+    assert refs == ["ConfigurationErrorResponse", "InternalErrorResponse"]
+    assert _component_name(schema, "500") == "ErrorResponses"
+
+
+def test_the_500_model_accepts_every_documented_body(schema):
+    for value in _examples(schema, "500").values():
+        validated = ErrorResponses.model_validate(value)
+        assert validated.root.error == value["error"]
+
+
+def test_the_500_model_rejects_the_counterexamples():
+    with pytest.raises(ValidationError):
+        ErrorResponses.model_validate({"error": "llm_configuration_error"})
+
+    with pytest.raises(ValidationError):
+        ErrorResponses.model_validate({"error": "internal_error", "detail": None})
+
+    with pytest.raises(ValidationError):
+        ErrorResponses.model_validate(
+            {"error": "internal_error", "detail": "not allowed"}
+        )
 
 
 def test_the_503_documents_three_distinct_bodies(schema):
