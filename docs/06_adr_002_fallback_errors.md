@@ -85,3 +85,50 @@ A client generated from the new document therefore validates both directions: a 
 - It does not claim that a retry would fail or succeed. No retry is configured, and nothing here authorises one.
 - It does not cover the safety filter. A refusal is a condition of its own and needs its own decision.
 - It does not make the case assessed. The payload contains no assessment, and the high urgency is policy, not a prediction.
+
+## Amendment — content blocks (12 November 2026)
+
+The provider can refuse to process a conversation, or to finish a response, because of its content. This is **not an HTTP failure**: the API answers `200` and the refusal lives in the body, in two independent fields. The decision above covered a capacity refusal; this amendment extends the same reasoning to a content refusal.
+
+### Signals
+
+| Step | Field | Values classified |
+|---|---|---|
+| Input block | `prompt_feedback.block_reason` | `SAFETY`, `BLOCKLIST`, `PROHIBITED_CONTENT` |
+| Output block | first candidate's `finish_reason` | `SAFETY`, `BLOCKLIST`, `PROHIBITED_CONTENT`, `SPII`, `RECITATION` |
+
+`OTHER`, the image reasons and unknown values stay outside the initial classification. `MODEL_ARMOR` and `JAILBREAK` are marked unavailable in the Gemini API by the pinned SDK. `RECITATION` is included as a content restriction the provider reported, not as a safety category: the effect on the service is the same — no usable assessment — and repeating the call does not help.
+
+### Order of checks
+
+Prompt block, then the first candidate's finish reason, then `parsed`. The SDK builds `parsed` from the first candidate's text and never consults the finish reason, so a block reported on that candidate must be read **before** the parsed package is trusted. Only the first candidate is inspected, because it is the one the SDK uses: a block on an alternative the service would never read must not veto a usable output.
+
+`MAX_TOKENS` is not a block. A truncated response stays `502 invalid_llm_response`, because a larger budget is a different remedy and a different decision.
+
+### Contract
+
+`502` with `error: content_blocked`, no retry instruction, and a reviewable case:
+
+```json
+{
+  "error": "content_blocked",
+  "detail": "The LLM provider reported a content block. No usable assessment is available for this request.",
+  "fallback": {
+    "assessment": "unavailable",
+    "error": "content_blocked",
+    "urgency": "high"
+  }
+}
+```
+
+The `502` becomes a closed union: `invalid_llm_response` keeps its body and rejects `fallback`, and `content_blocked` requires the package, whose `error` literal is its own — a package pinning the capacity refusal is not valid here. The log distinguishes the step, `prompt_content_blocked` or `candidate_content_blocked`, together with the recognized reason; the provider's text and safety categories are never forwarded.
+
+### Why it triggers human review
+
+The same criterion as the capacity refusal: no usable assessment, and repeating is not the remedy. A blocked conversation is sensitive by definition, and the caller decides whether to queue it.
+
+### What this amendment does not claim
+
+- It does not claim the conversation is unsafe. The provider reported a block; its categories are not forwarded and not interpreted.
+- It does not classify unrecognized values or image reasons.
+- It does not change how a truncated or malformed response is handled.
