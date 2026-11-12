@@ -229,6 +229,11 @@ def test_rate_limited_provider_returns_503(monkeypatch):
         "detail": (
             "The LLM provider is rate-limiting this service or its quota is exhausted."
         ),
+        "fallback": {
+            "assessment": "unavailable",
+            "error": "provider_rate_limited",
+            "urgency": "high",
+        },
     }
 
 

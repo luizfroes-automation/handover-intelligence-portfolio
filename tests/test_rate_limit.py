@@ -30,6 +30,11 @@ RATE_LIMITED_BODY = {
     "detail": (
         "The LLM provider is rate-limiting this service or its quota is exhausted."
     ),
+    "fallback": {
+        "assessment": "unavailable",
+        "error": "provider_rate_limited",
+        "urgency": "high",
+    },
 }
 
 CONFIGURATION_BODY = {
@@ -181,6 +186,32 @@ def test_a_rate_limited_origin_reaches_the_503_contract(monkeypatch, caplog, ori
     for marker in (TRANSCRIPT_MARKER, CREDENTIAL_MARKER, PROVIDER_BODY_MARKER):
         assert marker not in caplog.text
         assert marker not in response.text
+
+
+def test_the_fallback_carries_no_ai_judgement(monkeypatch, origin):
+    """The reviewable case names what is missing, never a decision."""
+    server = origin(
+        status=429,
+        payload=_provider_error_body(429, f"quota {PROVIDER_BODY_MARKER}"),
+    )
+    _use_origin(monkeypatch, server)
+
+    fallback = _post().json()["fallback"]
+
+    assert fallback == {
+        "assessment": "unavailable",
+        "error": "provider_rate_limited",
+        "urgency": "high",
+    }
+    for field in (
+        "handoff_needed",
+        "confidence",
+        "summary",
+        "suggested_team",
+        "reason",
+        "flags",
+    ):
+        assert field not in fallback
 
 
 def test_a_body_code_that_disagrees_does_not_change_the_classification(

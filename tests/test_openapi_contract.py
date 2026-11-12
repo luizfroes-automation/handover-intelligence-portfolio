@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.error_contract import ErrorResponses
+from app.error_contract import ErrorResponses, ProviderFailureResponses
 from app.errors import (
     InvalidLLMResponseError,
     LLMConfigurationError,
@@ -96,8 +96,8 @@ def test_the_validation_schema_carries_only_the_sanitized_fields(schema):
     assert "ValidationError" not in schema["components"]["schemas"]
 
 
-def _union_members(schema: dict) -> list[dict]:
-    union = _component(schema, _component_name(schema, "500"))
+def _union_members(schema: dict, status: str = "500") -> list[dict]:
+    union = _component(schema, _component_name(schema, status))
     return [
         _component(schema, member["$ref"].rsplit("/", 1)[-1])
         for member in union["anyOf"]
@@ -180,6 +180,99 @@ def test_the_503_documents_three_distinct_bodies(schema):
     codes = [value["error"] for value in examples.values()]
     assert codes.count("provider_unavailable") == 2
     assert codes.count("provider_rate_limited") == 1
+
+
+def test_the_503_binds_each_branch_to_its_code(schema):
+    members = _union_members(schema, "503")
+    by_code = {_pinned_code(member): member for member in members}
+
+    assert set(by_code) == {"provider_unavailable", "provider_rate_limited"}
+
+    unavailable = by_code["provider_unavailable"]
+    assert "fallback" not in unavailable["properties"]
+    assert unavailable["additionalProperties"] is False
+
+    limited = by_code["provider_rate_limited"]
+    assert "fallback" in limited["required"]
+    assert set(limited["properties"]) == {"error", "detail", "fallback"}
+    assert limited["additionalProperties"] is False
+
+
+def test_the_503_examples_follow_their_branch(schema):
+    examples = _examples(schema, "503")
+
+    for name in ("provider_unavailable", "provider_unavailable_connection_failure"):
+        assert "fallback" not in examples[name]
+
+    assert examples["provider_rate_limited"]["fallback"] == {
+        "assessment": "unavailable",
+        "error": "provider_rate_limited",
+        "urgency": "high",
+    }
+
+
+def test_the_503_schema_references_the_models_that_are_exercised(schema):
+    refs = [
+        member["$ref"].rsplit("/", 1)[-1]
+        for member in _component(schema, _component_name(schema, "503"))["anyOf"]
+    ]
+    assert refs == ["ProviderUnavailableResponse", "ProviderRateLimitedResponse"]
+    assert _component_name(schema, "503") == "ProviderFailureResponses"
+
+
+def test_the_503_model_accepts_every_documented_body(schema):
+    for value in _examples(schema, "503").values():
+        validated = ProviderFailureResponses.model_validate(value)
+        assert validated.root.error == value["error"]
+
+
+def test_the_503_model_rejects_a_fallback_on_the_wrong_branch():
+    with pytest.raises(ValidationError):
+        ProviderFailureResponses.model_validate(
+            {
+                "error": "provider_unavailable",
+                "detail": "The LLM provider is temporarily unavailable.",
+                "fallback": {
+                    "assessment": "unavailable",
+                    "error": "provider_rate_limited",
+                    "urgency": "high",
+                },
+            }
+        )
+
+
+def test_the_503_model_rejects_a_missing_or_wrong_fallback():
+    with pytest.raises(ValidationError):
+        ProviderFailureResponses.model_validate(
+            {"error": "provider_rate_limited", "detail": "The LLM provider..."}
+        )
+
+    with pytest.raises(ValidationError):
+        ProviderFailureResponses.model_validate(
+            {
+                "error": "provider_rate_limited",
+                "detail": "The LLM provider...",
+                "fallback": {
+                    "assessment": "unavailable",
+                    "error": "provider_rate_limited",
+                    "urgency": "low",
+                },
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        ProviderFailureResponses.model_validate(
+            {
+                "error": "provider_rate_limited",
+                "detail": "The LLM provider...",
+                "fallback": {
+                    "assessment": "unavailable",
+                    "error": "provider_rate_limited",
+                    "urgency": "high",
+                    "confidence": 0.9,
+                },
+            }
+        )
 
 
 # --- the document against the responses ----------------------------------- #
