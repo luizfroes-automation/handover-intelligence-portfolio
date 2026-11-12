@@ -42,6 +42,15 @@ class ContentBlockedError(LLMClientError):
         self.reason = reason
 
 
+class ProxyFailureError(LLMClientError):
+    """The request failed on the proxy path, and the cause is not established.
+
+    The proxy answered and refused, or the path through it failed, but the
+    exception carries neither the status nor the peer. The fixed message states
+    the observation; it does not claim that our configuration is wrong.
+    """
+
+
 class TranscriptTooLargeError(Exception):
     """A structurally valid transcript exceeds the total size limit.
 

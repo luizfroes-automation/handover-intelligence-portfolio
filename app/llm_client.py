@@ -18,6 +18,7 @@ from app.errors import (
     LLMConfigurationError,
     ProviderRateLimitedError,
     ProviderUnavailableError,
+    ProxyFailureError,
 )
 from app.schema import HandoverPackage
 
@@ -182,11 +183,10 @@ def generate_handover_package(transcript: list[dict]) -> HandoverPackage:
     except httpx.ConnectError as exc:
         raise ProviderUnavailableError("LLM provider is unreachable") from exc
     except httpx.ProxyError as exc:
-        # The API currently classifies proxy errors as configuration errors. A
-        # refused tunnel can also result from the proxy being unable to reach the
-        # destination. The exception alone does not establish the underlying
-        # cause or whether a later attempt would succeed.
-        raise LLMConfigurationError("LLM provider proxy is misconfigured") from exc
+        # The proxy answered and refused, or the path through it failed. The
+        # exception carries neither the status nor the peer, so the cause is not
+        # established: the fixed message states only the observation.
+        raise ProxyFailureError("Proxy request failed") from exc
     except (httpx.NetworkError, httpx.RemoteProtocolError) as exc:
         # Upstream transport failures: the connection dropped mid-stream or the
         # peer spoke something unexpected. LocalProtocolError and

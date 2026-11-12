@@ -54,6 +54,10 @@ _CONTENT_BLOCK_IDENTIFIERS = {
     "candidate": CANDIDATE_CONTENT_BLOCKED,
 }
 
+# The proxy path failed, and the exception carries neither the CONNECT status nor
+# the peer it tried to reach. The identifier names the uncertainty.
+PROXY_FAILURE_ORIGIN_UNDETERMINED = "proxy_failure_origin_undetermined"
+
 
 def certificate_verification_failed(exc: BaseException) -> bool:
     """True only for the translated ``httpx.ConnectError`` branch.

@@ -39,6 +39,8 @@ INVALID_RESPONSE_DETAIL = (
 
 CONFIGURATION_ERROR_DETAIL = "The service is misconfigured. Please contact support."
 
+PROXY_ERROR_DETAIL = "The request could not be completed through the proxy."
+
 TRANSCRIPT_TOO_LARGE_DETAIL = (
     "The transcript is too large. The limit is "
     f"{MAX_TRANSCRIPT_CHARS} characters in total."
@@ -168,12 +170,23 @@ class InternalErrorResponse(BaseModel):
     error: Literal["internal_error"]
 
 
-class ErrorResponses(RootModel[ConfigurationErrorResponse | InternalErrorResponse]):
-    """A 500 is one of two bodies, and ``error`` says whether ``detail`` exists.
+class ProxyErrorResponse(BaseModel):
+    """The 500 raised when the request failed on the proxy path."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    error: Literal["proxy_error"]
+    detail: str
+
+
+class ErrorResponses(
+    RootModel[ConfigurationErrorResponse | ProxyErrorResponse | InternalErrorResponse]
+):
+    """A 500 is our configuration, the proxy path, or the generic failure.
 
     Each branch pins its own code and refuses unknown properties, so a client
-    that reads ``error`` to decide whether ``detail`` is available cannot be
-    handed a body that contradicts the code.
+    that reads ``error`` decides which body it received and whether ``detail``
+    is available.
     """
 
 
@@ -222,9 +235,10 @@ HANDOVER_RESPONSES: dict[int, dict] = {
     500: {
         "model": ErrorResponses,
         "description": (
-            "The service is misconfigured, or an unexpected failure occurred. "
-            "Each branch pins its `error` code: `llm_configuration_error` always "
-            "carries `detail`, and `internal_error` never does."
+            "The service is misconfigured, the request failed on the proxy "
+            "path, or an unexpected failure occurred. Each branch pins its "
+            "`error` code: `llm_configuration_error` and `proxy_error` always "
+            "carry `detail`, and `internal_error` never does."
         ),
         "content": {
             "application/json": {
@@ -236,6 +250,12 @@ HANDOVER_RESPONSES: dict[int, dict] = {
                         "value": _body(
                             "llm_configuration_error", CONFIGURATION_ERROR_DETAIL
                         ),
+                    },
+                    "proxy_error": {
+                        "summary": (
+                            "The proxy path failed; the cause is not established"
+                        ),
+                        "value": _body("proxy_error", PROXY_ERROR_DETAIL),
                     },
                     "internal_error": {
                         "summary": (
