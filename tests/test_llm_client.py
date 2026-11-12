@@ -189,6 +189,9 @@ def test_proxy_error_raises_proxy_failure_error(fake_client):
 
     assert exc_info.value.__cause__ is original
     assert str(exc_info.value) == "Proxy request failed"
+    # No trace observation was attached: the field stays absent instead of
+    # being parsed from the exception message.
+    assert exc_info.value.proxy_connect_status is None
 
 
 def _response(parsed):
