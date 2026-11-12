@@ -46,9 +46,17 @@ class ProxyFailureError(LLMClientError):
     """The request failed on the proxy path, and the cause is not established.
 
     The proxy answered and refused, or the path through it failed, but the
-    exception carries neither the status nor the peer. The fixed message states
-    the observation; it does not claim that our configuration is wrong.
+    exception carries neither the peer nor, in every case, the CONNECT status.
+    When the status was observed, ``proxy_connect_status`` holds the number;
+    the fixed message states the observation and never claims that our
+    configuration is wrong.
     """
+
+    def __init__(
+        self, message: str, *, proxy_connect_status: int | None = None
+    ) -> None:
+        super().__init__(message)
+        self.proxy_connect_status = proxy_connect_status
 
 
 class TranscriptTooLargeError(Exception):

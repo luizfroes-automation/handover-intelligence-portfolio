@@ -235,14 +235,25 @@ async def handle_proxy_failure(
     request: Request, exc: ProxyFailureError
 ) -> JSONResponse:
     # The proxy answered and refused, or the path through it failed; the
-    # exception carries neither the status nor the peer it tried to reach. The
-    # response states the observation and leaves the cause open: it is not a
-    # claim that the configuration, the network or the destination is wrong.
-    logger.error(
-        "Proxy request failed: %s %s",
-        describe_exception(exc),
-        PROXY_FAILURE_ORIGIN_UNDETERMINED,
-    )
+    # exception carries neither the peer it tried to reach nor, in every case,
+    # the CONNECT status. The status, when observed, separates a 407 from a 403
+    # and shows that a 502 left the tunnel unestablished. The response states
+    # the observation and leaves the cause open: it is not a claim that the
+    # configuration, the network or the destination is wrong.
+    status = exc.proxy_connect_status
+    if status is None:
+        logger.error(
+            "Proxy request failed: %s %s",
+            describe_exception(exc),
+            PROXY_FAILURE_ORIGIN_UNDETERMINED,
+        )
+    else:
+        logger.error(
+            "Proxy request failed: %s %s proxy_connect_status=%d",
+            describe_exception(exc),
+            PROXY_FAILURE_ORIGIN_UNDETERMINED,
+            status,
+        )
     return JSONResponse(
         status_code=500,
         content={"error": "proxy_error", "detail": PROXY_ERROR_DETAIL},

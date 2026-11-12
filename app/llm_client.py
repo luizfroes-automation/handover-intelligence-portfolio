@@ -20,6 +20,7 @@ from app.errors import (
     ProviderUnavailableError,
     ProxyFailureError,
 )
+from app.proxy_observer import observe_proxy_connect, proxy_connect_status
 from app.schema import HandoverPackage
 
 load_dotenv()
@@ -98,7 +99,12 @@ def _get_client() -> genai.Client:
             raise LLMConfigurationError("GEMINI_API_KEY or GOOGLE_API_KEY is not set")
         _client = genai.Client(
             api_key=_API_KEY,
-            http_options={"timeout": DEFAULT_TIMEOUT_MS},
+            http_options={
+                "timeout": DEFAULT_TIMEOUT_MS,
+                "client_args": {
+                    "event_hooks": {"request": [observe_proxy_connect]},
+                },
+            },
         )
     return _client
 
@@ -183,10 +189,14 @@ def generate_handover_package(transcript: list[dict]) -> HandoverPackage:
     except httpx.ConnectError as exc:
         raise ProviderUnavailableError("LLM provider is unreachable") from exc
     except httpx.ProxyError as exc:
-        # The proxy answered and refused, or the path through it failed. The
-        # exception carries neither the status nor the peer, so the cause is not
-        # established: the fixed message states only the observation.
-        raise ProxyFailureError("Proxy request failed") from exc
+        # The status is read from the request trace before HTTPX builds this
+        # exception; the message and the reason phrase are never read. The
+        # peer and the cause remain unestablished: the fixed message states
+        # only the observation.
+        raise ProxyFailureError(
+            "Proxy request failed",
+            proxy_connect_status=proxy_connect_status(exc),
+        ) from exc
     except (httpx.NetworkError, httpx.RemoteProtocolError) as exc:
         # Upstream transport failures: the connection dropped mid-stream or the
         # peer spoke something unexpected. LocalProtocolError and
