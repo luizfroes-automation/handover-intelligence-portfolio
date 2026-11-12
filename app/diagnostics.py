@@ -13,6 +13,8 @@ import ssl
 import httpx
 from google.genai import errors
 
+from app.errors import ContentBlockedError
+
 TLS_CERTIFICATE_VERIFICATION_FAILED = "tls_certificate_verification_failed"
 
 # The connect branch with no evidence about where the connection failed. The
@@ -40,6 +42,16 @@ _CLIENT_ERROR_IDENTIFIERS = {
     401: PROVIDER_AUTH_REJECTED,
     403: PROVIDER_PERMISSION_DENIED,
     RATE_LIMITED_STATUS: PROVIDER_THROTTLED_OR_QUOTA_EXHAUSTED,
+}
+
+# A content block is reported in the body of a 200, in one of two places. The
+# identifier names the stage that reported it; the reason travels beside it.
+PROMPT_CONTENT_BLOCKED = "prompt_content_blocked"
+CANDIDATE_CONTENT_BLOCKED = "candidate_content_blocked"
+
+_CONTENT_BLOCK_IDENTIFIERS = {
+    "prompt": PROMPT_CONTENT_BLOCKED,
+    "candidate": CANDIDATE_CONTENT_BLOCKED,
 }
 
 
@@ -71,6 +83,17 @@ def connection_failure_identifier(exc: BaseException) -> str | None:
     if certificate_verification_failed(exc):
         return TLS_CERTIFICATE_VERIFICATION_FAILED
     return CONNECTION_FAILURE_ORIGIN_UNDETERMINED
+
+
+def content_block_identifier(exc: BaseException) -> str | None:
+    """The identifier for a content block, or ``None`` for another branch.
+
+    ``None`` means the exception is not a content block, so the handler that
+    receives it is not the block branch.
+    """
+    if not isinstance(exc, ContentBlockedError):
+        return None
+    return _CONTENT_BLOCK_IDENTIFIERS.get(exc.stage)
 
 
 def client_error_identifier(exc: BaseException) -> str | None:

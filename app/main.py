@@ -11,10 +11,13 @@ from app.diagnostics import (
     TLS_CERTIFICATE_VERIFICATION_FAILED,
     client_error_identifier,
     connection_failure_identifier,
+    content_block_identifier,
 )
 from app.error_contract import (
     CONFIGURATION_ERROR_DETAIL,
     CONNECTION_FAILURE_DETAIL,
+    CONTENT_BLOCKED_DETAIL,
+    CONTENT_BLOCKED_PACKAGE,
     HANDOVER_RESPONSES,
     INVALID_RESPONSE_DETAIL,
     PROVIDER_UNAVAILABLE_DETAIL,
@@ -23,6 +26,7 @@ from app.error_contract import (
     TRANSCRIPT_TOO_LARGE_DETAIL,
 )
 from app.errors import (
+    ContentBlockedError,
     InvalidLLMResponseError,
     LLMConfigurationError,
     ProviderRateLimitedError,
@@ -120,6 +124,31 @@ async def handle_provider_rate_limited(
             "error": "provider_rate_limited",
             "detail": RATE_LIMITED_DETAIL,
             "fallback": RATE_LIMITED_FALLBACK.model_dump(),
+        },
+    )
+
+
+@app.exception_handler(ContentBlockedError)
+async def handle_content_blocked(
+    request: Request, exc: ContentBlockedError
+) -> JSONResponse:
+    # The provider answers 200 and reports the block in the body, so the status
+    # alone never showed it. The identifier names the stage that reported the
+    # block and the reason names the recognized value; the provider's text and
+    # safety categories are not logged. The retry instruction is deliberately
+    # absent: the same conversation meets the same block.
+    logger.warning(
+        "LLM provider reported a content block: %s %s reason=%s",
+        describe_exception(exc),
+        content_block_identifier(exc),
+        exc.reason,
+    )
+    return JSONResponse(
+        status_code=502,
+        content={
+            "error": "content_blocked",
+            "detail": CONTENT_BLOCKED_DETAIL,
+            "fallback": CONTENT_BLOCKED_PACKAGE.model_dump(),
         },
     )
 

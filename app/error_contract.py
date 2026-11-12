@@ -27,6 +27,11 @@ RATE_LIMITED_DETAIL = (
     "The LLM provider is rate-limiting this service or its quota is exhausted."
 )
 
+CONTENT_BLOCKED_DETAIL = (
+    "The LLM provider reported a content block. "
+    "No usable assessment is available for this request."
+)
+
 INVALID_RESPONSE_DETAIL = (
     "The LLM provider returned an invalid response. "
     "Please retry; if it persists, contact support."
@@ -67,6 +72,50 @@ RATE_LIMITED_FALLBACK = ErrorHandoverPackage(
     error="provider_rate_limited",
     urgency="high",
 )
+
+
+class ContentBlockedPackage(BaseModel):
+    """A reviewable case for a request the provider blocked for its content."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    assessment: Literal["unavailable"]
+    error: Literal["content_blocked"]
+    urgency: Literal["high"]
+
+
+CONTENT_BLOCKED_PACKAGE = ContentBlockedPackage(
+    assessment="unavailable",
+    error="content_blocked",
+    urgency="high",
+)
+
+
+class InvalidLLMResponse(BaseModel):
+    """The 502 raised when the provider output does not satisfy the contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    error: Literal["invalid_llm_response"]
+    detail: str
+
+
+class ContentBlockedResponse(BaseModel):
+    """The 502 raised when the provider reported a content block."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    error: Literal["content_blocked"]
+    detail: str
+    fallback: ContentBlockedPackage
+
+
+class InvalidResponseBodies(RootModel[InvalidLLMResponse | ContentBlockedResponse]):
+    """A 502 either is an unusable response or a content block.
+
+    Only ``content_blocked`` carries ``fallback``; each branch pins its code and
+    refuses unknown properties.
+    """
 
 
 class ProviderUnavailableResponse(BaseModel):
@@ -199,8 +248,12 @@ HANDOVER_RESPONSES: dict[int, dict] = {
         },
     },
     502: {
-        "model": ErrorResponse,
-        "description": "The provider output does not satisfy the handover contract.",
+        "model": InvalidResponseBodies,
+        "description": (
+            "The provider output does not satisfy the handover contract, or the "
+            "provider reported a content block. Only the block carries "
+            "`fallback`, the case a person has to review."
+        ),
         "content": {
             "application/json": {
                 "examples": {
@@ -209,7 +262,14 @@ HANDOVER_RESPONSES: dict[int, dict] = {
                             "No structured output, or output that fails validation"
                         ),
                         "value": _body("invalid_llm_response", INVALID_RESPONSE_DETAIL),
-                    }
+                    },
+                    "content_blocked": {
+                        "summary": ("The provider blocked the prompt or the candidate"),
+                        "value": {
+                            **_body("content_blocked", CONTENT_BLOCKED_DETAIL),
+                            "fallback": CONTENT_BLOCKED_PACKAGE.model_dump(),
+                        },
+                    },
                 }
             }
         },
