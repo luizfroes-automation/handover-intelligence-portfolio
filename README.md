@@ -169,7 +169,8 @@ Provider failures never reach the client as raw SDK exceptions. The LLM client t
 | Provider refused the request for capacity or an exhausted quota (HTTP 429) | 503 | `provider_rate_limited` |
 | Provider returned no structured output, or output that fails validation | 502 | `invalid_llm_response` |
 | Provider reported a content block on the prompt or the candidate | 502 | `content_blocked` |
-| Provider rejected the request (4xx other than 429, e.g. unknown model or invalid key), or the HTTP client raised a proxy error (e.g. a refused CONNECT tunnel) | 500 | `llm_configuration_error` |
+| Provider rejected the request (4xx other than 429, e.g. unknown model or invalid key) | 500 | `llm_configuration_error` |
+| The HTTP client raised a proxy error (e.g. a refused CONNECT tunnel) | 500 | `proxy_error` |
 | Any other unexpected error | 500 | `internal_error` |
 | Empty transcript | 422 | `detail[]` with `type`, `loc`, `msg` |
 
@@ -185,7 +186,7 @@ Conversation content never reaches a log record either. The server logs the exce
 
 The guarantee has two documented boundaries. `loc` names schema fields and list indices, which holds because no model forbids extra fields: an unknown key sent by the client is ignored, not reported. A model switched to `extra="forbid"` would put that key into `loc`, so `tests/test_error_sanitization.py` fails if it happens. `msg` is forwarded only for messages Pydantic composes from the schema; a message raised by a field validator is replaced by a fixed text, and a custom Pydantic error type would bypass that rule unless it is deliberately allowlisted in `app/sanitization.py`. No validator in the project raises a custom type today — the only one raises `ValueError`.
 
-The API currently maps `httpx.ProxyError` to `500 llm_configuration_error`. A proxy can refuse a `CONNECT` tunnel because it cannot reach the destination. The exception alone does not establish the underlying cause or whether a later attempt would succeed.
+A proxy error is not a configuration verdict. `httpx.ProxyError` covers a tunnel refused because the proxy could not reach the destination, a missing proxy credential and an allowlist refusal alike, and the exception carries neither the `CONNECT` status nor the peer it tried to reach: the status exists only inside the message text, which the service does not read. The answer is `500 proxy_error` with a neutral message — *The request could not be completed through the proxy.* — and the log records `proxy_failure_origin_undetermined` with the sanitized chain of types and frames. The service does not claim that its configuration, the network or the destination is at fault, and it does not suggest a retry.
 
 The provider call uses a transport timeout of 20,000 ms (`DEFAULT_TIMEOUT_MS` in `app/llm_client.py`). The SDK receives it in milliseconds, converts it to seconds and hands it to HTTPX, where a single value covers four phases: connecting, reading, writing and waiting for a pool connection. The test demonstrates the read phase: it bounds how long the service waits for the next block of data, so a response that keeps sending data can take longer than 20 s in total. It bounds how long the service waits for progress, not how long the provider works — a call may still complete remotely after the client gives up — and it does not cancel anything on the provider side. The value is a provisional operational hypothesis, not a measured p99. Retry is not configured: a failed call is not repeated, including a rate-limit refusal from the provider. Check it with `python -m pytest tests/test_timeout.py`.
 
