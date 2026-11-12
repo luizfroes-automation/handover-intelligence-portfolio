@@ -1,7 +1,9 @@
 """LLM client responsible for generating structured handover packages."""
 
+import logging
 import os
 from collections.abc import Mapping
+from typing import Literal, NamedTuple
 
 import httpx
 from dotenv import load_dotenv
@@ -21,17 +23,33 @@ from app.schema import HandoverPackage
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
 
-def _resolve_api_key(environ: Mapping[str, str] | None = None) -> str | None:
-    """Return the API key, preferring GEMINI_API_KEY over GOOGLE_API_KEY.
+ApiKeySource = Literal["GEMINI_API_KEY", "GOOGLE_API_KEY"]
+
+
+class ApiKey(NamedTuple):
+    """A resolved API key and the variable it came from."""
+
+    value: str | None
+    source: ApiKeySource | None
+
+
+def _resolve_api_key(environ: Mapping[str, str] | None = None) -> ApiKey:
+    """Return the API key and its source, preferring GEMINI_API_KEY.
 
     When both variables hold a value, GEMINI_API_KEY wins, which is the
-    opposite of the SDK's default precedence. Blank values count as unset.
+    opposite of the SDK's default precedence. Blank values count as unset, so
+    the source names the variable that actually supplied the key.
     """
     source = os.environ if environ is None else environ
     gemini_key = (source.get("GEMINI_API_KEY") or "").strip()
     google_key = (source.get("GOOGLE_API_KEY") or "").strip()
-    return gemini_key or google_key or None
+    if gemini_key:
+        return ApiKey(gemini_key, "GEMINI_API_KEY")
+    if google_key:
+        return ApiKey(google_key, "GOOGLE_API_KEY")
+    return ApiKey(None, None)
 
 
 DEFAULT_MODEL = "gemini-3.1-flash-lite"
@@ -54,8 +72,19 @@ def _resolve_model(environ: Mapping[str, str] | None = None) -> str:
     return (source.get("GEMINI_MODEL") or "").strip() or DEFAULT_MODEL
 
 
+def _warn_on_key_fallback(source: ApiKeySource | None) -> None:
+    """Announce, once at startup, when the key comes from the fallback.
+
+    The message names the variables only: no value, prefix, length or hash.
+    """
+    if source == "GOOGLE_API_KEY":
+        logger.warning("GEMINI_API_KEY is not set; using GOOGLE_API_KEY")
+
+
 _MODEL = _resolve_model()
-_API_KEY = _resolve_api_key()
+_API_KEY_RESOLUTION = _resolve_api_key()
+_API_KEY = _API_KEY_RESOLUTION.value
+_warn_on_key_fallback(_API_KEY_RESOLUTION.source)
 
 _client: genai.Client | None = None
 
