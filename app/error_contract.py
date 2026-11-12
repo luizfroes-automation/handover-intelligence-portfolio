@@ -7,7 +7,9 @@ every one of them against a live response, so a handler edited without the
 document fails the suite.
 """
 
-from pydantic import BaseModel, RootModel
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, RootModel
 
 from app.schema import MAX_TRANSCRIPT_CHARS
 
@@ -45,14 +47,30 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
+class ConfigurationErrorResponse(BaseModel):
+    """The 500 raised when the client or generation configuration is rejected."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    error: Literal["llm_configuration_error"]
+    detail: str
+
+
 class InternalErrorResponse(BaseModel):
-    """The generic unexpected failure, which carries no detail."""
+    """The generic 500, the only error in the contract with no ``detail``."""
 
-    error: str
+    model_config = ConfigDict(extra="forbid")
+
+    error: Literal["internal_error"]
 
 
-class ErrorResponses(RootModel[ErrorResponse | InternalErrorResponse]):
-    """A 500 is either our configuration error or the generic unexpected one."""
+class ErrorResponses(RootModel[ConfigurationErrorResponse | InternalErrorResponse]):
+    """A 500 is one of two bodies, and ``error`` says whether ``detail`` exists.
+
+    Each branch pins its own code and refuses unknown properties, so a client
+    that reads ``error`` to decide whether ``detail`` is available cannot be
+    handed a body that contradicts the code.
+    """
 
 
 class ValidationErrorItem(BaseModel):
@@ -101,7 +119,8 @@ HANDOVER_RESPONSES: dict[int, dict] = {
         "model": ErrorResponses,
         "description": (
             "The service is misconfigured, or an unexpected failure occurred. "
-            "Only the generic failure arrives without `detail`."
+            "Each branch pins its `error` code: `llm_configuration_error` always "
+            "carries `detail`, and `internal_error` never does."
         ),
         "content": {
             "application/json": {
