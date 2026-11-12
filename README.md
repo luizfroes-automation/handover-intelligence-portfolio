@@ -188,6 +188,10 @@ The API currently maps `httpx.ProxyError` to `500 llm_configuration_error`. A pr
 
 The provider call uses a transport timeout of 20,000 ms (`DEFAULT_TIMEOUT_MS` in `app/llm_client.py`). The SDK receives it in milliseconds, converts it to seconds and hands it to HTTPX, where a single value covers four phases: connecting, reading, writing and waiting for a pool connection. The test demonstrates the read phase: it bounds how long the service waits for the next block of data, so a response that keeps sending data can take longer than 20 s in total. It bounds how long the service waits for progress, not how long the provider works — a call may still complete remotely after the client gives up — and it does not cancel anything on the provider side. The value is a provisional operational hypothesis, not a measured p99. Retry is not configured: a failed call is not repeated, including a rate-limit refusal from the provider. Check it with `python -m pytest tests/test_timeout.py`.
 
+## Health check
+
+`GET /health` answers `200` with `{"status": "ok"}` while the process is serving requests. It is a **liveness** check: it does not call the provider, needs no credentials, and stays green during a Gemini outage. It says nothing about whether a handover can be generated — that depends on the provider, and the error contract above describes how a provider failure is reported.
+
 ## Limitations
 
 1. **Self-declared, uncalibrated confidence.** On a case designed to be ambiguous, the system declared 95% certainty. The number is the model's own claim, and it has not been calibrated against outcomes. Until it is, sensitive cases need human review. Record: [`docs/tech-05-evidence.md`](docs/tech-05-evidence.md).
