@@ -2,9 +2,9 @@
 
 The trace event carries the status, the reason phrase and the headers, and it is
 also emitted for ordinary origin responses. The observer accepts a status only
-from the reading whose ``.started`` event identified a ``CONNECT`` request. The
-state lives on the request that failed, so two requests through the shared
-client cannot read each other's status.
+from the reading whose ``.started`` event identified a ``CONNECT`` request, and
+only when that tunnel was refused. The state lives on the request that failed,
+so two requests through the shared client cannot read each other's status.
 """
 
 from types import SimpleNamespace
@@ -80,6 +80,13 @@ def test_a_complete_without_a_started_reading_is_ignored():
     assert proxy_connect_status(_proxy_error(request)) is None
 
 
+def test_a_successful_connect_is_not_a_refusal():
+    request = _request()
+    _read_headers(request, status=200)
+
+    assert proxy_connect_status(_proxy_error(request)) is None
+
+
 def test_an_origin_response_is_not_a_connect_status():
     request = _request()
     _read_headers(request, method=b"POST", status=403)
@@ -102,6 +109,8 @@ def test_a_later_origin_reading_clears_the_connect_status():
         (b"HTTP/1.1", 407),
         (b"HTTP/1.1", 407, b"reason"),
         (b"HTTP/1.1", 700, b"reason", []),
+        (b"HTTP/1.1", 407, b"reason", "not-a-list"),
+        (b"HTTP/1.1", 407, b"reason", ()),
         (407, []),
         None,
         "not-a-tuple",

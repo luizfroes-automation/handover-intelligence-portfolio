@@ -4,8 +4,8 @@ The proxy answers the tunnel request with 502, 407 or 403 and closes; the SDK
 turns it into `httpx.ProxyError`, the client into `ProxyFailureError`, and the
 API answers `500 proxy_error`. The status is observed before the exception is
 built and logged as a number. Each test counts the tunnel attempts, so a retry
-would fail it, and the reason phrase carries a marker that must never reach the
-body or the log.
+would fail it, and the reason phrase and a synthetic header carry markers that
+must never reach the body or the log.
 """
 
 import logging
@@ -21,9 +21,10 @@ from app.main import app
 
 client = TestClient(app)
 
-TRANSCRIPT_MARKER = "synthetic-transcript-marker-enh15"
-CREDENTIAL_MARKER = "synthetic-credential-marker-enh15"
-REASON_MARKER = "synthetic-proxy-reason-marker-enh15"
+TRANSCRIPT_MARKER = "synthetic-transcript-marker-enh13"
+CREDENTIAL_MARKER = "synthetic-credential-marker-enh13"
+REASON_MARKER = "synthetic-proxy-reason-marker-enh13"
+HEADER_MARKER = "synthetic-proxy-header-marker-enh13"
 
 PROXY_BODY = {
     "error": "proxy_error",
@@ -53,6 +54,8 @@ class Proxy(socketserver.BaseRequestHandler):
             + str(self.server.status).encode()
             + b" "
             + REASON_MARKER.encode()
+            + b"\r\nX-Synthetic-Proxy: "
+            + HEADER_MARKER.encode()
             + b"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
         )
 
@@ -111,6 +114,9 @@ def _use_origin(monkeypatch, server: Server) -> None:
     for name in list(os.environ):
         if "proxy" in name.lower():
             monkeypatch.delenv(name, raising=False)
+    # The Windows registry can still supply a proxy after the variables are
+    # gone; direct loopback tests must not discover one.
+    monkeypatch.setattr("httpx._utils.getproxies", dict)
     monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
     monkeypatch.setattr("app.llm_client.genai.Client", build)
     monkeypatch.setattr("app.llm_client._client", None)
@@ -141,7 +147,12 @@ def test_a_refused_connect_reaches_the_proxy_contract(
     assert f"proxy_connect_status={status}" in caplog.text
     assert caplog.text.count("proxy_connect_status=") == 1
     # The raw reason phrase and the request never reach the client or the log.
-    for marker in (TRANSCRIPT_MARKER, CREDENTIAL_MARKER, REASON_MARKER):
+    for marker in (
+        TRANSCRIPT_MARKER,
+        CREDENTIAL_MARKER,
+        REASON_MARKER,
+        HEADER_MARKER,
+    ):
         assert marker not in caplog.text
         assert marker not in response.text
 
@@ -168,6 +179,11 @@ def test_an_origin_response_is_not_a_proxy_connect_status(
     # The origin answered; its status is not a proxy CONNECT status.
     assert "proxy_connect_status" not in caplog.text
     assert server.requests == 1
-    for marker in (TRANSCRIPT_MARKER, CREDENTIAL_MARKER, REASON_MARKER):
+    for marker in (
+        TRANSCRIPT_MARKER,
+        CREDENTIAL_MARKER,
+        REASON_MARKER,
+        HEADER_MARKER,
+    ):
         assert marker not in caplog.text
         assert marker not in response.text

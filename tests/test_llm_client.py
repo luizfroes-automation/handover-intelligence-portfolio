@@ -1,5 +1,6 @@
 """Tests for the LLM client error handling and success path."""
 
+from types import SimpleNamespace
 from unittest import mock
 
 import httpx
@@ -15,6 +16,7 @@ from app.errors import (
     ProviderUnavailableError,
     ProxyFailureError,
 )
+from app.proxy_observer import observe_proxy_connect
 from app.schema import HandoverPackage, Team, Urgency
 
 TRANSCRIPT = [
@@ -191,6 +193,30 @@ def test_proxy_error_raises_proxy_failure_error(fake_client):
     assert str(exc_info.value) == "Proxy request failed"
     # No trace observation was attached: the field stays absent instead of
     # being parsed from the exception message.
+    assert exc_info.value.proxy_connect_status is None
+
+
+def test_a_malformed_observation_keeps_the_original_proxy_failure(fake_client):
+    request = httpx.Request("POST", "https://example.invalid")
+    observe_proxy_connect(request)
+    trace = request.extensions["trace"]
+    trace(
+        "http11.receive_response_headers.started",
+        {"request": SimpleNamespace(method=b"CONNECT")},
+    )
+    trace(
+        "http11.receive_response_headers.complete",
+        {"return_value": (b"HTTP/1.1", 407, b"reason", "not-a-list")},
+    )
+    original = httpx.ProxyError("tunnel refused with status 407")
+    original.request = request
+    fake_client.models.generate_content.side_effect = original
+
+    with pytest.raises(ProxyFailureError) as exc_info:
+        llm_client.generate_handover_package(TRANSCRIPT)
+
+    assert exc_info.value.__cause__ is original
+    assert str(exc_info.value) == "Proxy request failed"
     assert exc_info.value.proxy_connect_status is None
 
 
