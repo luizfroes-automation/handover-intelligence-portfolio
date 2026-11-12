@@ -136,7 +136,7 @@ async def handle_content_blocked(
     # alone never showed it. The identifier names the stage that reported the
     # block and the reason names the recognized value; the provider's text and
     # safety categories are not logged. The retry instruction is deliberately
-    # absent: the same conversation meets the same block.
+    # absent: the service neither advises nor performs a retry on this branch.
     logger.warning(
         "LLM provider reported a content block: %s %s reason=%s",
         describe_exception(exc),

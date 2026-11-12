@@ -28,7 +28,7 @@ class ProviderRateLimitedError(LLMClientError):
 
 
 class ContentBlockedError(LLMClientError):
-    """The provider reported a content block, so no assessment exists.
+    """The provider reported a content block, so no usable assessment is available.
 
     ``stage`` is where the block was reported ("prompt" or "candidate") and
     ``reason`` is the enum value the provider returned, already restricted to the

@@ -97,7 +97,7 @@ The provider can refuse to process a conversation, or to finish a response, beca
 | Input block | `prompt_feedback.block_reason` | `SAFETY`, `BLOCKLIST`, `PROHIBITED_CONTENT` |
 | Output block | first candidate's `finish_reason` | `SAFETY`, `BLOCKLIST`, `PROHIBITED_CONTENT`, `SPII`, `RECITATION` |
 
-`OTHER`, the image reasons and unknown values stay outside the initial classification. `MODEL_ARMOR` and `JAILBREAK` are marked unavailable in the Gemini API by the pinned SDK. `RECITATION` is included as a content restriction the provider reported, not as a safety category: the effect on the service is the same — no usable assessment — and repeating the call does not help.
+`OTHER`, the image reasons and unknown values stay outside the initial classification. `MODEL_ARMOR` and `JAILBREAK` are marked unavailable in the Gemini API by the pinned SDK. `RECITATION` is included as a content restriction the provider reported, not as a safety category: the effect on the service is the same — no usable assessment is available — and this branch neither advises nor performs a retry.
 
 ### Order of checks
 
@@ -125,7 +125,7 @@ The `502` becomes a closed union: `invalid_llm_response` keeps its body and reje
 
 ### Why it triggers human review
 
-The same criterion as the capacity refusal: no usable assessment, and repeating is not the remedy. A blocked conversation is sensitive by definition, and the caller decides whether to queue it.
+The same criterion as the capacity refusal: no usable assessment is available, and this branch neither advises nor performs a retry. A blocked conversation is sensitive by definition, and the caller decides whether to queue it.
 
 ### What this amendment does not claim
 
