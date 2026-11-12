@@ -24,6 +24,8 @@ client = TestClient(app)
 TRANSCRIPT_MARKER = "synthetic-transcript-marker-enh05"
 CREDENTIAL_MARKER = "synthetic-credential-marker-enh05"
 PROVIDER_BODY_MARKER = "synthetic-provider-body-marker-enh05"
+PROMPT_BLOCK_MARKER = "synthetic-prompt-block-marker-enh05"
+SAFETY_CATEGORY = "HARM_CATEGORY_HARASSMENT"
 
 CONTENT_BLOCKED_BODY = {
     "error": "content_blocked",
@@ -64,7 +66,7 @@ def _candidate(*, finish_reason: str, text: str | None = None) -> dict:
         "index": 0,
         "safetyRatings": [
             {
-                "category": "HARM_CATEGORY_HARASSMENT",
+                "category": SAFETY_CATEGORY,
                 "probability": "HIGH",
                 "blocked": True,
             }
@@ -189,9 +191,15 @@ def test_a_safety_block_with_valid_json_is_not_accepted(monkeypatch, caplog, ori
     assert response.status_code == 502
     assert response.json() == CONTENT_BLOCKED_BODY
     assert server.events.count("request_received") == 1
+    assert "api_key_matches_synthetic=true" in server.events
     assert "candidate_content_blocked" in caplog.text
     assert "SAFETY" in caplog.text
-    for marker in (TRANSCRIPT_MARKER, CREDENTIAL_MARKER, PROVIDER_BODY_MARKER):
+    for marker in (
+        TRANSCRIPT_MARKER,
+        CREDENTIAL_MARKER,
+        PROVIDER_BODY_MARKER,
+        SAFETY_CATEGORY,
+    ):
         assert marker not in caplog.text
         assert marker not in response.text
 
@@ -202,7 +210,21 @@ def test_a_safety_block_with_valid_json_is_not_accepted(monkeypatch, caplog, ori
 def test_a_prompt_block_without_candidates_is_content_blocked(
     monkeypatch, caplog, origin
 ):
-    server = origin({"promptFeedback": {"blockReason": "SAFETY"}})
+    server = origin(
+        {
+            "promptFeedback": {
+                "blockReason": "SAFETY",
+                "blockReasonMessage": f"blocked {PROMPT_BLOCK_MARKER}",
+                "safetyRatings": [
+                    {
+                        "category": SAFETY_CATEGORY,
+                        "probability": "HIGH",
+                        "blocked": True,
+                    }
+                ],
+            }
+        }
+    )
     _use_origin(monkeypatch, server)
 
     with caplog.at_level(logging.WARNING, logger="app.main"):
@@ -211,9 +233,18 @@ def test_a_prompt_block_without_candidates_is_content_blocked(
     assert response.status_code == 502
     assert response.json() == CONTENT_BLOCKED_BODY
     assert server.events.count("request_received") == 1
+    assert "api_key_matches_synthetic=true" in server.events
     assert "prompt_content_blocked" in caplog.text
     assert "candidate_content_blocked" not in caplog.text
     assert "SAFETY" in caplog.text
+    for marker in (
+        TRANSCRIPT_MARKER,
+        CREDENTIAL_MARKER,
+        PROMPT_BLOCK_MARKER,
+        SAFETY_CATEGORY,
+    ):
+        assert marker not in caplog.text
+        assert marker not in response.text
 
 
 def test_a_blocked_alternative_does_not_veto_the_first_candidate(monkeypatch, origin):
@@ -231,6 +262,8 @@ def test_a_blocked_alternative_does_not_veto_the_first_candidate(monkeypatch, or
     response = _post()
 
     assert response.status_code == 200
+    assert server.events.count("request_received") == 1
+    assert "api_key_matches_synthetic=true" in server.events
     assert HandoverPackage.model_validate(response.json())
 
 
@@ -246,6 +279,8 @@ def test_a_stopped_candidate_keeps_the_normal_flow(monkeypatch, origin):
     response = _post()
 
     assert response.status_code == 200
+    assert server.events.count("request_received") == 1
+    assert "api_key_matches_synthetic=true" in server.events
     assert response.json()["handoff_needed"] is True
 
 
@@ -261,6 +296,7 @@ def test_a_truncated_candidate_stays_an_invalid_response(monkeypatch, origin):
     assert response.json() == INVALID_RESPONSE_BODY
     assert "fallback" not in response.json()
     assert server.events.count("request_received") == 1
+    assert "api_key_matches_synthetic=true" in server.events
 
 
 def test_an_unclassified_finish_reason_is_not_a_block(monkeypatch, origin):
@@ -271,3 +307,5 @@ def test_an_unclassified_finish_reason_is_not_a_block(monkeypatch, origin):
 
     assert response.status_code == 502
     assert response.json() == INVALID_RESPONSE_BODY
+    assert server.events.count("request_received") == 1
+    assert "api_key_matches_synthetic=true" in server.events
