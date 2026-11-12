@@ -161,7 +161,7 @@ def test_client_side_transport_error_keeps_the_generic_500(monkeypatch, caplog):
     assert "LocalProtocolError" in caplog.text
 
 
-def test_proxy_error_reaches_the_configuration_contract(monkeypatch, caplog):
+def test_proxy_error_reaches_the_proxy_contract(monkeypatch, caplog):
     _client_raising(
         monkeypatch,
         httpx.ProxyError(
@@ -178,8 +178,8 @@ def test_proxy_error_reaches_the_configuration_contract(monkeypatch, caplog):
 
     assert response.status_code == 500
     assert response.json() == {
-        "error": "llm_configuration_error",
-        "detail": "The service is misconfigured. Please contact support.",
+        "error": "proxy_error",
+        "detail": "The request could not be completed through the proxy.",
     }
     assert PROXY_URL_MARKER not in response.text
     assert CREDENTIAL_MARKER not in response.text
@@ -187,8 +187,12 @@ def test_proxy_error_reaches_the_configuration_contract(monkeypatch, caplog):
     assert PROXY_URL_MARKER not in caplog.text
     assert CREDENTIAL_MARKER not in caplog.text
     assert TRANSCRIPT_MARKER not in caplog.text
-    assert "LLMConfigurationError" in caplog.text
+    assert "proxy_failure_origin_undetermined" in caplog.text
+    assert "ProxyFailureError" in caplog.text
     assert "ProxyError" in caplog.text
+    # The response no longer claims the configuration is wrong.
+    assert "misconfigured" not in response.text
+    assert "misconfigured" not in caplog.text
 
 
 def test_invalid_llm_response_returns_502(monkeypatch):
